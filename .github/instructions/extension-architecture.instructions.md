@@ -1,5 +1,5 @@
 ---
-description: "Use when implementing or reviewing Inspector extension architecture, extension manifests, contribution registries, execution plans, artifact formats, built-in extensions, extension hosts, or extension UI."
+description: "Use when implementing or reviewing Inspector extension architecture, extension manifests, contribution registries, command or artifact plans, built-in extensions, extension hosts, or extension UI."
 applyTo:
   - "core/extensions/**"
   - "clients/cli/src/extensions/**"

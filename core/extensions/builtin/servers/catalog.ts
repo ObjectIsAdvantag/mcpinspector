@@ -1,26 +1,23 @@
 import type {
   InspectorServerSettings,
   MCPServerConfig,
-} from "@inspector/core/mcp/types.js";
-import { InMemorySecretStore } from "@inspector/core/auth/node/secret-store.js";
+} from "../../../mcp/types.js";
+import { InMemorySecretStore } from "../../../auth/node/secret-store.js";
 import {
   loadServerEntries,
   selectServerEntry,
   type ServerLoadOptions,
-} from "@inspector/core/mcp/node/index.js";
+} from "../../../mcp/node/index.js";
 
-/** One catalog/config entry as returned by `servers/list`. */
+/** One catalog/config entry returned by the server-list command. */
 export type ServerListEntry = {
   name: string;
   type: string;
   /** Command line, URL, or other short identity for display. */
   detail: string;
-  /**
-   * Optional live-session name when a caller annotates catalog entries
-   * with connected sessions (omitted for plain catalog listing).
-   */
+  /** Optional live-session name supplied by a session-aware caller. */
   session?: string;
-  /** True when that session is the most-recently-used connected session. */
+  /** True when the annotated session is the most-recently-used session. */
   isMru?: boolean;
 };
 
@@ -30,19 +27,13 @@ export type SessionListRef = {
   isMru?: boolean;
 };
 
-/**
- * Mark catalog entries that have a live session with the same name.
- * Does not mutate `entries`.
- *
- * TODO(#1432): consumed by the experimental session CLI (`mcpi`); kept here so
- * that client can reuse catalog listing without duplicating this helper.
- */
+/** Mark entries that have a live session with the same name, without mutation. */
 export function annotateServerEntriesWithSessions(
   entries: ServerListEntry[],
   sessions: SessionListRef[],
 ): ServerListEntry[] {
   if (sessions.length === 0) return entries;
-  const byName = new Map(sessions.map((s) => [s.name, s] as const));
+  const byName = new Map(sessions.map((session) => [session.name, session]));
   return entries.map((entry) => {
     const session = byName.get(entry.name);
     if (!session) return entry;
@@ -54,7 +45,7 @@ export function annotateServerEntriesWithSessions(
   });
 }
 
-/** Detail view for `servers/show` (secrets redacted). */
+/** Detail view returned by the server-show command, with secrets redacted. */
 export type ServerShowEntry = {
   name: string;
   type: string;
@@ -65,16 +56,12 @@ export type ServerShowEntry = {
 
 const REDACTED = "[redacted]";
 
-/**
- * Summarise an {@link MCPServerConfig} for catalog listing (no connection).
- */
+/** Summarize a server configuration without connecting to it. */
 export function summarizeServerConfig(config: MCPServerConfig): {
   type: string;
   detail: string;
 } {
-  // Narrow on the URL-bearing transports first — stdio's `type` is optional, so
-  // an else-after-`=== "stdio"` check would still leave `StdioServerConfig` in
-  // the residual union (see `StdioServerConfig` in core/mcp/types.ts).
+  // Narrow URL transports first because stdio's `type` is optional.
   if (config.type === "sse" || config.type === "streamable-http") {
     return { type: config.type, detail: config.url ?? "" };
   }
@@ -83,9 +70,8 @@ export function summarizeServerConfig(config: MCPServerConfig): {
 }
 
 /**
- * Load catalog/config entries and return a sorted name + summary list.
- * Uses an empty in-memory secret store by default so listing never touches the
- * OS keychain (names/types/details do not need rehydrated secrets).
+ * Load and sort server summaries. The empty secret store prevents a list
+ * operation from reading the OS keychain because summaries never need secrets.
  */
 export async function listServerEntries(
   serverOptions: ServerLoadOptions = {},
@@ -99,14 +85,10 @@ export async function listServerEntries(
       const { type, detail } = summarizeServerConfig(resolved.config);
       return { name, type, detail };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-/**
- * Resolve one catalog/config entry for `servers/show` (no MCP connection).
- * Secret-bearing fields (env values, OAuth client secret, sensitive headers)
- * are replaced with {@link REDACTED}.
- */
+/** Resolve and redact one server configuration without connecting to it. */
 export async function showServerEntry(
   serverName: string,
   serverOptions: ServerLoadOptions = {},
@@ -130,46 +112,46 @@ export async function showServerEntry(
   return result;
 }
 
-/** Visible for tests. */
+/** Redact secret-bearing fields in a transport configuration. */
 export function sanitizeServerConfig(
   config: MCPServerConfig,
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...config };
+  const output: Record<string, unknown> = { ...config };
   if ("env" in config && config.env) {
-    out.env = redactStringRecord(config.env);
+    output.env = redactStringRecord(config.env);
   }
   if ("requestInit" in config && isPlainObject(config.requestInit)) {
-    out.requestInit = sanitizeInitRecord(config.requestInit);
+    output.requestInit = sanitizeInitRecord(config.requestInit);
   }
   if ("eventSourceInit" in config && isPlainObject(config.eventSourceInit)) {
-    out.eventSourceInit = sanitizeInitRecord(config.eventSourceInit);
+    output.eventSourceInit = sanitizeInitRecord(config.eventSourceInit);
   }
-  return out;
+  return output;
 }
 
-/** Visible for tests. */
+/** Redact secret-bearing fields in Inspector-owned server settings. */
 export function sanitizeServerSettings(
   settings: InspectorServerSettings,
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = {
+  const output: Record<string, unknown> = {
     ...settings,
-    headers: (settings.headers ?? []).map((h) => ({
-      key: h.key,
-      value: isSensitiveHeader(h.key) ? REDACTED : h.value,
+    headers: (settings.headers ?? []).map((header) => ({
+      key: header.key,
+      value: isSensitiveHeader(header.key) ? REDACTED : header.value,
     })),
-    metadata: (settings.metadata ?? []).map((m) => ({
-      key: m.key,
-      value: isSensitiveHeader(m.key) ? REDACTED : m.value,
+    metadata: (settings.metadata ?? []).map((metadata) => ({
+      key: metadata.key,
+      value: isSensitiveHeader(metadata.key) ? REDACTED : metadata.value,
     })),
-    env: (settings.env ?? []).map((e) => ({
-      key: e.key,
+    env: (settings.env ?? []).map((environment) => ({
+      key: environment.key,
       value: REDACTED,
     })),
   };
   if (settings.oauthClientSecret !== undefined) {
-    out.oauthClientSecret = REDACTED;
+    output.oauthClientSecret = REDACTED;
   }
-  return out;
+  return output;
 }
 
 function redactStringRecord(
@@ -182,45 +164,41 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Redact sensitive header values inside requestInit / eventSourceInit. */
 function sanitizeInitRecord(
   init: Record<string, unknown>,
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...init };
+  const output: Record<string, unknown> = { ...init };
   if (isPlainObject(init.headers)) {
-    out.headers = Object.fromEntries(
+    output.headers = Object.fromEntries(
       Object.entries(init.headers).map(([key, value]) => [
         key,
         isSensitiveHeader(key) ? REDACTED : value,
       ]),
     );
   } else if (Array.isArray(init.headers)) {
-    // HeadersInit pair form: [["Authorization", "Bearer …"], …]
-    out.headers = init.headers.map((entry) => {
+    output.headers = init.headers.map((entry) => {
       if (
         Array.isArray(entry) &&
         entry.length >= 2 &&
         typeof entry[0] === "string"
       ) {
-        const key = entry[0];
-        const value = entry[1];
-        return [key, isSensitiveHeader(key) ? REDACTED : value];
+        return [entry[0], isSensitiveHeader(entry[0]) ? REDACTED : entry[1]];
       }
       return entry;
     });
   }
-  return out;
+  return output;
 }
 
 function isSensitiveHeader(key: string): boolean {
-  const k = key.toLowerCase();
+  const normalized = key.toLowerCase();
   return (
-    k.includes("auth") ||
-    k.includes("cookie") ||
-    k.includes("secret") ||
-    k.includes("token") ||
-    k.includes("password") ||
-    k.includes("api-key") ||
-    k.includes("apikey")
+    normalized.includes("auth") ||
+    normalized.includes("cookie") ||
+    normalized.includes("secret") ||
+    normalized.includes("token") ||
+    normalized.includes("password") ||
+    normalized.includes("api-key") ||
+    normalized.includes("apikey")
   );
 }

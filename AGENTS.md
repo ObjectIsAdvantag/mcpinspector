@@ -39,7 +39,9 @@ v2/main/
 │   │   │                               #   browser-externalized-builtin-gate.ts (build-gate logic that fails
 │   │   │                               #     `vite build` on a browser-externalized Node built-in — #1769)
 │   │   └── static/                     # sandbox_proxy.html (served by sandbox-controller for MCP Apps tab)
-│   ├── cli/                            # CLI client (tsup bundle, @inspector/core alias)
+│   ├── cli/                            # CLI client (tsup bundle, @inspector/core alias;
+│   │                                   #   registry bootstrap plus command plan/execute lifecycle
+│   │                                   #   in src/extensions/, host-only plans in src/host/)
 │   ├── tui/                            # TUI client (Ink + React, tsup bundle)
 │   ├── launcher/                       # Shared launcher (relative imports into sibling build/ outputs)
 ├── core/                               # Shared core code (no package.json — consumed via the `@inspector/core` vite alias)
@@ -75,10 +77,11 @@ v2/main/
 │   │                                   #   Consumed by both App.tsx trees (web + tui); gated by
 │   │                                   #   the web coverage `include`, tests in
 │   │                                   #   clients/web/src/test/core/client/.
-│   ├── extensions/                     # Isomorphic extension contracts: manifest validation,
+│   ├── extensions/                     # Extension contracts: manifest validation,
 │   │                                   #   compatibility diagnostics, contribution catalogs,
-│   │                                   #   built-in metadata, and execution-plan DTOs. Tests in
-│   │                                   #   clients/web/src/test/core/extensions/.
+│   │                                   #   built-in metadata, command-plan DTOs, plus the
+│   │                                   #   Node-only built-in server catalog/redaction provider.
+│   │                                   #   Tests in clients/web/src/test/core/extensions/.
 │   ├── json/                           # JSON utilities and parameter/argument conversion
 │   │                                   #   (xMcpHeader.ts: SEP-2243 `x-mcp-header`
 │   │                                   #   annotation scan/validation + mirrored-param

@@ -21,6 +21,8 @@ export type ServerSelectionRequirement = z.infer<
 
 export interface CommandContribution {
   id: string;
+  /** Human-facing selectors; persisted plans always use {@link id}. */
+  aliases?: string[];
   title: string;
   connection: ConnectionRequirement;
   serverSelection: ServerSelectionRequirement;

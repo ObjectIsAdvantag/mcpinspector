@@ -25,6 +25,7 @@ export const VALID_MANIFEST: InspectorExtensionManifest = {
     commands: [
       {
         id: "example.commands.inspect",
+        aliases: ["commands/inspect"],
         title: "Inspect a server",
         connection: "connected",
         serverSelection: "exactly-one",

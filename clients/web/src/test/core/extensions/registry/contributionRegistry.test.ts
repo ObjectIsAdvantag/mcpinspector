@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createBuiltinContributionCatalog } from "@inspector/core/extensions/builtin/catalog.js";
-import { createStaticContributionCatalog } from "@inspector/core/extensions/registry/contributionRegistry.js";
+import {
+  createStaticContributionCatalog,
+  resolveCommandContribution,
+} from "@inspector/core/extensions/registry/contributionRegistry.js";
 import {
   INCOMPATIBLE_MANIFEST,
   INVALID_MANIFEST,
@@ -86,15 +89,108 @@ describe("createStaticContributionCatalog", () => {
     ]);
   });
 
-  it("registers the built-in server commands and no planned artifacts", () => {
+  it("rejects a command selector already owned by another extension", () => {
+    const collision = structuredClone(VALID_MANIFEST);
+    collision.id = "example.collision";
+    collision.activationEvents = [];
+    collision.contributes = {
+      commands: [
+        {
+          id: "example.commands.other",
+          aliases: ["commands/inspect"],
+          title: "Other command",
+          connection: "none",
+          serverSelection: "none",
+        },
+      ],
+    };
+    const catalog = createStaticContributionCatalog(
+      [builtin(VALID_MANIFEST), builtin(collision)],
+      HOST,
+    );
+    expect(catalog.extensions).toHaveLength(1);
+    expect(catalog.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "extension.duplicate-command-selector",
+        contributionId: "example.commands.other",
+      }),
+    ]);
+  });
+
+  it.each([
+    {
+      id: "commands/inspect",
+      aliases: undefined,
+      selector: "commands/inspect",
+    },
+    {
+      id: "example.commands.other",
+      aliases: ["example.commands.inspect"],
+      selector: "example.commands.inspect",
+    },
+  ])(
+    "rejects canonical-id and alias selector collisions for $selector",
+    ({ id, aliases, selector }) => {
+      const collision = structuredClone(VALID_MANIFEST);
+      collision.id = "example.collision";
+      collision.activationEvents = [];
+      collision.contributes = {
+        commands: [
+          {
+            id,
+            ...(aliases === undefined ? {} : { aliases }),
+            title: "Other command",
+            connection: "none",
+            serverSelection: "none",
+          },
+        ],
+      };
+      const catalog = createStaticContributionCatalog(
+        [builtin(VALID_MANIFEST), builtin(collision)],
+        HOST,
+      );
+      expect(catalog.diagnostics).toEqual([
+        expect.objectContaining({
+          code: "extension.duplicate-command-selector",
+          contributionId: id,
+          message: `Duplicate command selector: ${selector}`,
+        }),
+      ]);
+    },
+  );
+
+  it("resolves canonical command ids and aliases", () => {
+    const catalog = createStaticContributionCatalog(
+      [builtin(VALID_MANIFEST)],
+      HOST,
+    );
+    expect(
+      resolveCommandContribution(catalog, "example.commands.inspect"),
+    ).toBe(catalog.commands[0]);
+    expect(resolveCommandContribution(catalog, "commands/inspect")).toBe(
+      catalog.commands[0],
+    );
+    expect(resolveCommandContribution(catalog, "commands/missing")).toBe(
+      undefined,
+    );
+  });
+
+  it("registers MCP invocation and server commands without planned artifacts", () => {
     const catalog = createBuiltinContributionCatalog(HOST);
     expect(catalog.diagnostics).toEqual([]);
     expect(catalog.commands.map(({ contribution }) => contribution.id)).toEqual(
       [
+        "modelcontextprotocol.mcp.invoke",
         "modelcontextprotocol.servers.list",
         "modelcontextprotocol.servers.show",
       ],
     );
+    expect(
+      resolveCommandContribution(catalog, "mcp/invoke")?.contribution.id,
+    ).toBe("modelcontextprotocol.mcp.invoke");
+    expect(
+      resolveCommandContribution(catalog, "servers/list")?.contribution.id,
+    ).toBe("modelcontextprotocol.servers.list");
     expect(catalog.artifactFormats).toEqual([]);
   });
 });
