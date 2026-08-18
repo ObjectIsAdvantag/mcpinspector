@@ -2,6 +2,14 @@
 
 > **`AGENTS.md` is the source of truth.** This file is a review-focused distillation of it, kept in sync by hand — see "Keep documentation files up to date" in `AGENTS.md`. Where the two disagree, `AGENTS.md` wins, and the drift is a bug worth flagging in review.
 
+## Fork development context
+
+This is the ObjectIsAdvantag experimental fork. Direct implementation and pull requests here are
+allowed; do not apply the inherited upstream board, issue, milestone, or PR authorization workflow
+to ordinary fork work or mutate upstream GitHub state unless explicitly requested. For extension
+work, follow [the extension architecture specification](../specification/v2_extension_architecture.md)
+and [the reusable implementation prompt](prompts/implement-extension-architecture.prompt.md).
+
 The Inspector ships as one package with three clients (**Web**, **CLI**, **TUI**) over a shared `core/`, consumed via the `@inspector/core` build-time alias. v2 is **not** an npm workspace: the root and each `clients/*` keep their own `package.json` and `node_modules`.
 
 ## TypeScript

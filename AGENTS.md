@@ -2,6 +2,18 @@
 
 This is an application for inspecting MCP servers. Has three incarnations, Web, TUI, and CLI.
 
+## Experimental fork context
+
+This is the ObjectIsAdvantag experimental fork. Direct implementation and pull requests in this
+fork are allowed. The upstream `modelcontextprotocol` board, issue, milestone, and PR authorization
+rules later in this file apply only when preparing an upstream contribution; do not mutate upstream
+GitHub state unless explicitly requested.
+
+For extension work, [the extension architecture specification](specification/v2_extension_architecture.md)
+is the source of truth. Keep all repository code and documentation in English, and use
+[the reusable implementation prompt](.github/prompts/implement-extension-architecture.prompt.md)
+for phase or slice work.
+
 ## Project Structure
 
 ```
