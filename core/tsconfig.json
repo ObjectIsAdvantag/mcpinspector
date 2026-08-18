@@ -9,6 +9,7 @@
     "mcp/**/*.ts",
     "storage/**/*.ts",
     "auth/**/*.ts",
+    "extensions/**/*.ts",
     "json/**/*.ts",
     "logging/**/*.ts"
   ],
