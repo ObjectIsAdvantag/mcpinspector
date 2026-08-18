@@ -91,7 +91,7 @@ Both exist and do different jobs. Theme files (`src/theme/<Component>.ts`) custo
 
 ## Tests and the coverage gate
 
-- **All new or modified code needs tests.** The per-file gate is **≥ 90% on all four dimensions** — lines, statements, functions, **and branches** — enforced in CI for `clients/{web,cli,tui,launcher}` and the gated `core/` runtime.
+- **All new or modified code needs tests.** The per-file gate is **≥ 90% on all four dimensions** — lines, statements, functions, **and branches** — enforced in CI for `clients/{web,cli,tui,launcher}` and the gated `core/` runtime, including `core/extensions`.
 - **Never lower the gate** to accommodate an unreachable branch. Annotate at the source with a justified `/* v8 ignore … -- <reason> */`. Acceptable reasons: happy-dom-inherent paths (Mantine portal mounts, `useMediaQuery` fallbacks, `typeof window` SSR guards), React StrictMode effect-replay blocks, and provably-dead defensive guards. Anything else is a missing test.
 - **Suppress expected error output** from the console in tests that exercise error paths.
 

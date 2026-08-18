@@ -4,6 +4,8 @@
 
 - **Purpose:** design and implementation plan for an experimental fork
 - **Maturity:** candidate architecture; public extension compatibility is not promised
+- **Implemented:** Phase 0 contracts and static built-in discovery, plus the Phase 1 execution-plan
+  type skeleton; CLI execution still uses the pre-extension parser
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -177,7 +179,11 @@ Illustrative manifest:
         "operations": [
           "export",
           "validate"
-        ]
+        ],
+        "dataRequirements": {
+          "serverDescription": "read",
+          "session": "none"
+        }
       }
     ]
   }
@@ -251,6 +257,16 @@ interface ArtifactFormatContribution {
   operations: ArtifactOperation[];
   optionsSchema?: JsonObject;
   dataRequirements: ArtifactDataRequirements;
+}
+```
+
+`ArtifactDataRequirements` explicitly declares independent read access to the stable server
+description snapshot and native session snapshot:
+
+```ts
+interface ArtifactDataRequirements {
+  serverDescription: "none" | "read";
+  session: "none" | "read";
 }
 ```
 
@@ -551,27 +567,30 @@ core/extensions/
 ├── api/
 │   ├── artifacts.ts
 │   ├── commands.ts
-│   ├── errors.ts
+│   ├── diagnostics.ts
+│   ├── executionPlan.ts
 │   ├── json.ts
-│   └── sessions.ts
+│   └── sessions.ts                 # Phase 2
 ├── manifest/
 │   ├── schema.ts
 │   ├── parse.ts
 │   └── compatibility.ts
 ├── registry/
 │   ├── contributionRegistry.ts
-│   └── activationRegistry.ts
+│   └── activationRegistry.ts       # Later activation phase
 ├── artifacts/
-│   ├── sessionArtifact.ts
-│   └── serverDescriptionSnapshot.ts
+│   ├── sessionArtifact.ts          # Phase 2
+│   └── serverDescriptionSnapshot.ts # Phase 3
 ├── builtin/
-│   ├── servers/
-│   ├── inspector-session/
-│   └── mcpdesc-0.7/
+│   ├── manifests.ts
+│   ├── catalog.ts
+│   ├── servers/                    # Phase 1
+│   ├── inspector-session/          # Phase 2
+│   └── mcpdesc-0.7/                # Phase 3
 └── node/
-    ├── extensionHost.ts
-    ├── extensionProcess.ts
-    └── rpc.ts
+  ├── extensionHost.ts            # Phase 4
+  ├── extensionProcess.ts         # Phase 4
+  └── rpc.ts                      # Phase 4
 
 clients/cli/src/extensions/
 ├── bootstrap.ts
