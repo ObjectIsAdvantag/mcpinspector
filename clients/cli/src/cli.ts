@@ -11,7 +11,10 @@ import {
   DEFAULT_CONNECT_TIMEOUT_MS,
   withConnectTimeout,
 } from "./handlers/connect-timeout.js";
-import { listServerEntries, showServerEntry } from "./handlers/servers-list.js";
+import {
+  listServerEntries,
+  showServerEntry,
+} from "@inspector/core/extensions/builtin/servers/catalog.js";
 import { writeFormattedResult } from "./handlers/format-output.js";
 import { clearStoredAuthForRelogin } from "./clear-stored-auth-for-relogin.js";
 import { InspectorClient } from "@inspector/core/mcp/index.js";
@@ -36,6 +39,7 @@ import {
   metaValueToString,
   ONE_SHOT_METHODS,
   type MethodArgs,
+  type OutputFormat,
 } from "./handlers/method-types.js";
 export type { CliAppInfo } from "./handlers/method-types.js";
 export { emitResult } from "./handlers/emit-result.js";
@@ -80,6 +84,26 @@ import {
 import { type LoggingLevel } from "@modelcontextprotocol/client";
 import { LoggingLevelSchema } from "@modelcontextprotocol/core";
 import { readInspectorVersion } from "@inspector/core/node/version.js";
+import {
+  MCP_INVOKE_COMMAND_ID,
+  SERVERS_LIST_COMMAND_ALIAS,
+  SERVERS_LIST_COMMAND_ID,
+  SERVERS_SHOW_COMMAND_ALIAS,
+  SERVERS_SHOW_COMMAND_ID,
+} from "@inspector/core/extensions/builtin/manifests.js";
+import { resolveCliCommand } from "./extensions/bootstrap.js";
+import {
+  buildCommandPlan,
+  type CliConnectedCommandPlan,
+  type CliCommandPlan,
+  type CliNoConnectionCommandPlan,
+  type CliResolvedCommandPlan,
+  type CliServerLoadOptions,
+} from "./extensions/commands/plan.js";
+import { executeCommandPlan } from "./extensions/commands/execute.js";
+import type { CliHostPlan } from "./host/plan.js";
+
+type CliPlan = CliCommandPlan | CliHostPlan;
 
 export const validLogLevels: LoggingLevel[] = Object.values(
   LoggingLevelSchema.enum,
@@ -89,8 +113,6 @@ export const validLogLevels: LoggingLevel[] = Object.values(
 const CLI_CLIENT_NAME = "inspector-cli";
 
 export { DEFAULT_CONNECT_TIMEOUT_MS, withConnectTimeout };
-
-type OutputFormat = "text" | "json";
 
 async function callMethod(
   serverConfig: MCPServerConfig,
@@ -496,25 +518,8 @@ function parseKeyValuePair(
   return { ...previous, [key as string]: parsedValue };
 }
 
-type ParseResult =
-  | {
-      shortCircuit?: undefined;
-      serverConfig: MCPServerConfig;
-      serverSettings: InspectorServerSettings | undefined;
-      methodArgs: MethodArgs & { method: string };
-      clientConfigPath?: string;
-      clientId?: string;
-      clientSecret?: string;
-      clientMetadataUrl?: string;
-      callbackUrl?: string;
-      storedAuthOnly?: boolean;
-      relogin?: boolean;
-    }
-  // Short-circuit modes (`--list-stored-auth`, `--print-handoff`) do their own
-  // output and need no server connection; runCli returns immediately.
-  | { shortCircuit: true };
-
-async function parseArgs(argv?: string[]): Promise<ParseResult> {
+/** Parse argv into a plan without loading a catalog, OAuth state, or transport. */
+export function createCliPlan(argv?: string[]): CliPlan {
   const program = new Command();
   // On a parse/usage ERROR (exitCode !== 0), throw the CommanderError instead
   // of letting commander call process.exit(). The binary entry (index.ts) still
@@ -574,6 +579,10 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
       "Environment variables for the server (KEY=VALUE)",
       parseEnvPair,
       {},
+    )
+    .option(
+      "--command <command>",
+      "Inspector command selector (for example servers/list or modelcontextprotocol.servers.list)",
     )
     .option("--method <method>", "Method to invoke")
     .option("--tool-name <toolName>", "Tool name (for tools/call method)")
@@ -729,6 +738,7 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
     config?: string;
     server?: string;
     e?: Record<string, string>;
+    command?: string;
     method?: string;
     toolName?: string;
     toolArg?: Record<string, JsonValue>;
@@ -773,14 +783,6 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
         "--relogin cannot be combined with --list-stored-auth or --print-handoff",
       );
     }
-    if (
-      options.method === "servers/list" ||
-      options.method === "servers/show"
-    ) {
-      throw new Error(
-        "--relogin cannot be combined with --method servers/list or servers/show (no OAuth connect)",
-      );
-    }
   }
 
   // State-path precedence (getStateFilePath): MCP_INSPECTOR_OAUTH_STATE_PATH →
@@ -788,41 +790,86 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
   // same file the web backend writes, so tokens are shared across surfaces.
   const oauthStatePath = getStateFilePath();
 
-  // Short-circuit modes that need no server connection.
+  // Host utilities are explicit plans. Preserve the existing precedence: list
+  // wins when both flags are present, and both ignore method/target selectors.
   if (options.listStoredAuth) {
-    const servers = await readOAuthServers(oauthStatePath);
-    const withToken = Object.entries(servers)
-      .filter(([, v]) => Boolean(v.tokens?.access_token))
-      .map(([k]) => k);
-    await awaitableLog(
-      JSON.stringify({ oauthStatePath, storedServerUrls: withToken }) + "\n",
-    );
-    return { shortCircuit: true };
+    return {
+      kind: "host",
+      operation: "list-stored-auth",
+      oauthStatePath,
+    };
   }
   if (options.printHandoff) {
     if (!options.serverUrl) {
       throw new Error("--print-handoff requires --server-url");
     }
-    await awaitableLog(
-      JSON.stringify(
-        buildHandoff(options.serverUrl, oauthStatePath, options.transport),
-      ) + "\n",
-    );
-    return { shortCircuit: true };
+    return {
+      kind: "host",
+      operation: "print-handoff",
+      oauthStatePath,
+      serverUrl: options.serverUrl,
+      transport: options.transport,
+    };
   }
 
-  // Validate --method before stored-auth network work (refresh / wait) so a
-  // typo or stream method fails locally without burning a token round-trip.
-  if (!options.method) {
+  const implicitSelector =
+    options.method === SERVERS_LIST_COMMAND_ALIAS
+      ? SERVERS_LIST_COMMAND_ALIAS
+      : options.method === SERVERS_SHOW_COMMAND_ALIAS
+        ? SERVERS_SHOW_COMMAND_ALIAS
+        : options.method !== undefined
+          ? MCP_INVOKE_COMMAND_ID
+          : undefined;
+  const selector = options.command ?? implicitSelector;
+  if (!selector) {
     throw new Error(
       "Method is required. Use --method to specify the method to invoke.",
     );
   }
-  const isCatalogMethod =
-    options.method === "servers/list" || options.method === "servers/show";
-  if (!isCatalogMethod && !isOneShotMethod(options.method)) {
+
+  const registered = resolveCliCommand(selector);
+  const contribution = registered.contribution;
+  const compatibilityMethod =
+    contribution.id === SERVERS_LIST_COMMAND_ID
+      ? SERVERS_LIST_COMMAND_ALIAS
+      : contribution.id === SERVERS_SHOW_COMMAND_ID
+        ? SERVERS_SHOW_COMMAND_ALIAS
+        : undefined;
+
+  if (
+    contribution.connection !== "connected" &&
+    options.method !== undefined &&
+    options.method !== compatibilityMethod
+  ) {
     throw new Error(
-      `Unsupported method: ${options.method}. Supported --cli methods: ${ONE_SHOT_METHODS.join(", ")}, servers/list, servers/show.`,
+      `--command ${selector} cannot be combined with --method ${options.method}.`,
+    );
+  }
+
+  if (contribution.connection === "connected") {
+    if (!options.method) {
+      throw new Error(
+        "Method is required. Use --method to specify the method to invoke.",
+      );
+    }
+    if (!isOneShotMethod(options.method)) {
+      throw new Error(
+        `Unsupported method: ${options.method}. Supported --cli methods: ${ONE_SHOT_METHODS.join(", ")}, servers/list, servers/show.`,
+      );
+    }
+  }
+
+  if (options.relogin && contribution.connection !== "connected") {
+    if (
+      options.method === SERVERS_LIST_COMMAND_ALIAS ||
+      options.method === SERVERS_SHOW_COMMAND_ALIAS
+    ) {
+      throw new Error(
+        "--relogin cannot be combined with --method servers/list or servers/show (no OAuth connect)",
+      );
+    }
+    throw new Error(
+      `--relogin cannot be combined with --command ${selector} (no OAuth connect)`,
     );
   }
 
@@ -835,7 +882,7 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
     Boolean(options.serverUrl?.trim());
   const envCatalog = adHoc ? undefined : process.env.MCP_CATALOG_PATH;
 
-  const serverOptions = {
+  const serverOptions: CliServerLoadOptions = {
     // `?.trim() ||` (not `??`) so an explicit empty `--catalog ""` still falls
     // back to MCP_CATALOG_PATH — keeps CLI and TUI flag resolution identical.
     catalogPath: options.catalog?.trim() || envCatalog,
@@ -847,111 +894,64 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
     env: options.e,
     // `--header` is merged into the resolved server's settings (overriding any
     // file-level headers); file timeouts/OAuth are preserved. See #1482.
-    headers: options.header as Record<string, string> | undefined,
+    headers: options.header,
   };
 
-  // Catalog list / show — no MCP connection. Run before stored-auth refresh so
-  // a catalog-only command never triggers a token round-trip it won't use.
-  if (options.method === "servers/list") {
-    const servers = await listServerEntries(serverOptions);
-    await writeFormattedResult(
-      { servers },
-      options.format === "json" ? "json" : "text",
-    );
-    return { shortCircuit: true };
+  const format = options.format ?? "text";
+  const commandPlan = buildCommandPlan(registered, serverOptions, format);
+
+  if (contribution.connection === "none") {
+    if (
+      contribution.id !== SERVERS_LIST_COMMAND_ID ||
+      contribution.serverSelection !== "all"
+    ) {
+      throw new Error(
+        `Unsupported no-connection built-in command: ${contribution.id}`,
+      );
+    }
+    return {
+      ...commandPlan,
+      connection: contribution.connection,
+      serverSelection: contribution.serverSelection,
+      serverOptions,
+      format,
+    };
   }
-  if (options.method === "servers/show") {
-    if (!options.server?.trim()) {
+
+  if (contribution.connection === "resolved") {
+    if (
+      contribution.id !== SERVERS_SHOW_COMMAND_ID ||
+      contribution.serverSelection !== "exactly-one"
+    ) {
+      throw new Error(
+        `Unsupported resolved built-in command: ${contribution.id}`,
+      );
+    }
+    const serverName = options.server?.trim();
+    if (!serverName) {
       throw new Error(
         "servers/show requires --server <name> to select a catalog entry.",
       );
     }
-    const server = await showServerEntry(options.server, serverOptions);
-    await writeFormattedResult(
-      server,
-      options.format === "json" ? "json" : "text",
-    );
-    return { shortCircuit: true };
-  }
-
-  if (options.waitForAuth !== undefined || options.useStoredAuth) {
-    if (!options.serverUrl) {
-      throw new Error(
-        `${options.waitForAuth !== undefined ? "--wait-for-auth" : "--use-stored-auth"} requires --server-url`,
-      );
-    }
-    // Read the OAuth state file directly so the lookup is normalised the same
-    // way the web inspector wrote it (`new URL().href`), and so `--wait-for-
-    // auth` sees fresh on-disk state on each poll. When a `refresh_token` is
-    // stored, the CLI runs the SDK refresh grant and injects the fresh access
-    // token (persisting the rotation) rather than blindly injecting a possibly-
-    // stale stored access token (#1665) — the stored blob carries no expiry, so
-    // the refresh token is the durable credential. Without a refresh token it
-    // falls back to injecting the stored access token; a stale one surfaces as
-    // HTTP 401 → exit 3 (auth_required).
-    let token: string;
-    if (options.waitForAuth !== undefined) {
-      token = await waitForStoredToken(
-        options.serverUrl,
-        oauthStatePath,
-        options.waitForAuth,
-      );
-    } else {
-      const servers = await readOAuthServers(oauthStatePath);
-      const stored = findStoredServerState(servers, options.serverUrl);
-      if (stored?.state.tokens?.refresh_token) {
-        const storedAccess = stored.state.tokens.access_token;
-        try {
-          token = await refreshStoredAuthToken(
-            options.serverUrl,
-            oauthStatePath,
-          );
-        } catch (err) {
-          // A failed refresh (transient auth-server hiccup, missing client
-          // info) shouldn't turn a previously-working invocation into a hard
-          // failure when a still-usable access token is also on disk — fall
-          // back to injecting it (a genuinely stale one surfaces as HTTP 401 →
-          // exit 3, the same as without a refresh token). With no stored access
-          // token to fall back on, the refresh error stands.
-          if (!storedAccess) throw err;
-          token = storedAccess;
-        }
-      } else {
-        const found = findStoredToken(servers, options.serverUrl);
-        if (!found) {
-          const key = normalizeServerUrl(options.serverUrl);
-          const storedKeys = Object.keys(servers);
-          throw new CliExitCodeError(
-            EXIT_CODES.AUTH_REQUIRED,
-            `No stored OAuth token for ${key} in ${oauthStatePath}. Complete the OAuth flow in the web inspector first.` +
-              (storedKeys.length > 0
-                ? ` Stored keys: ${storedKeys.join(", ")}.`
-                : ""),
-            { code: "no_stored_token", url: options.serverUrl },
-          );
-        }
-        token = found;
-      }
-    }
-    serverOptions.headers = {
-      ...(serverOptions.headers ?? {}),
-      Authorization: `Bearer ${token}`,
+    return {
+      ...commandPlan,
+      connection: contribution.connection,
+      serverSelection: contribution.serverSelection,
+      serverOptions,
+      serverName,
+      format,
     };
   }
 
-  // Shared with the TUI: resolves the catalog/config source (or ad-hoc target),
-  // enforces the conflict matrix, and lifts disk headers/timeouts/OAuth into
-  // per-server settings. `--server` selects one when the file has several.
-  const entries = await loadServerEntries(serverOptions);
-  const selected = selectServerEntry(entries, options.server);
-  const serverConfig = selected.config;
-  // Ad-hoc invocations get a default connect timeout so a black-holed host
-  // fails fast; catalog/config runs keep their file-level timeout unless
-  // `--connect-timeout` is passed explicitly.
-  const serverSettings = withConnectTimeout(
-    selected.settings,
-    options.connectTimeout ?? (adHoc ? DEFAULT_CONNECT_TIMEOUT_MS : undefined),
-  );
+  if (
+    contribution.id !== MCP_INVOKE_COMMAND_ID ||
+    contribution.serverSelection !== "exactly-one" ||
+    options.method === undefined
+  ) {
+    throw new Error(
+      `Unsupported connected built-in command: ${contribution.id}`,
+    );
+  }
 
   if (
     options.appInfo &&
@@ -963,8 +963,7 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
     );
   }
 
-  // --tool-args-json passes arguments verbatim with no key=value coercion (so
-  // `"012"` stays a string and nested objects work without shell escaping).
+  // --tool-args-json passes arguments verbatim with no key=value coercion.
   let toolArg = options.toolArg;
   if (options.toolArgsJson !== undefined) {
     if (toolArg && Object.keys(toolArg).length > 0) {
@@ -975,10 +974,10 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
     let parsed: unknown;
     try {
       parsed = JSON.parse(options.toolArgsJson);
-    } catch (e) {
+    } catch (error) {
       throw new Error(
-        `--tool-args-json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
-        { cause: e },
+        `--tool-args-json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
     if (
@@ -1016,13 +1015,22 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
         )
       : undefined,
     appInfo: options.appInfo === true,
-    format: options.format,
+    format,
   };
 
   return {
-    serverConfig,
-    serverSettings,
+    ...commandPlan,
+    connection: contribution.connection,
+    serverSelection: contribution.serverSelection,
+    serverOptions,
+    serverName: options.server,
     methodArgs,
+    format,
+    adHoc,
+    connectTimeout: options.connectTimeout,
+    oauthStatePath,
+    waitForAuth: options.waitForAuth,
+    useStoredAuth: options.useStoredAuth === true,
     clientConfigPath: options.clientConfig,
     clientId: options.clientId,
     clientSecret: options.clientSecret,
@@ -1033,23 +1041,125 @@ async function parseArgs(argv?: string[]): Promise<ParseResult> {
   };
 }
 
-export async function runCli(argv?: string[]): Promise<void> {
-  const parsed = await parseArgs(argv ?? process.argv);
-  // `--list-stored-auth` / `--print-handoff` already wrote their output.
-  if (parsed.shortCircuit) return;
-  const {
-    serverConfig,
-    serverSettings,
-    methodArgs,
-    clientConfigPath,
-    clientId,
-    clientSecret,
-    clientMetadataUrl,
-    callbackUrl,
-    storedAuthOnly,
-    relogin,
-  } = parsed;
-  const clientConfig = await loadRunnerClientConfig({ clientConfigPath });
+async function runHostPlan(plan: CliHostPlan): Promise<void> {
+  if (plan.operation === "list-stored-auth") {
+    const servers = await readOAuthServers(plan.oauthStatePath);
+    const storedServerUrls = Object.entries(servers)
+      .filter(([, state]) => Boolean(state.tokens?.access_token))
+      .map(([serverUrl]) => serverUrl);
+    await awaitableLog(
+      JSON.stringify({
+        oauthStatePath: plan.oauthStatePath,
+        storedServerUrls,
+      }) + "\n",
+    );
+    return;
+  }
+
+  await awaitableLog(
+    JSON.stringify(
+      buildHandoff(plan.serverUrl, plan.oauthStatePath, plan.transport),
+    ) + "\n",
+  );
+}
+
+async function runNoConnectionCommand(
+  plan: CliNoConnectionCommandPlan,
+): Promise<void> {
+  if (plan.commandId !== SERVERS_LIST_COMMAND_ID) {
+    throw new Error(`No provider registered for command: ${plan.commandId}`);
+  }
+  const servers = await listServerEntries(plan.serverOptions);
+  await writeFormattedResult({ servers }, plan.format);
+}
+
+async function runResolvedCommand(plan: CliResolvedCommandPlan): Promise<void> {
+  if (plan.commandId !== SERVERS_SHOW_COMMAND_ID) {
+    throw new Error(`No provider registered for command: ${plan.commandId}`);
+  }
+  const server = await showServerEntry(plan.serverName, plan.serverOptions);
+  await writeFormattedResult(server, plan.format);
+}
+
+async function withStoredAuth(
+  plan: CliConnectedCommandPlan,
+): Promise<CliServerLoadOptions> {
+  const serverOptions: CliServerLoadOptions = {
+    ...plan.serverOptions,
+    headers: plan.serverOptions.headers
+      ? { ...plan.serverOptions.headers }
+      : undefined,
+  };
+  if (plan.waitForAuth === undefined && !plan.useStoredAuth) {
+    return serverOptions;
+  }
+  const serverUrl = plan.serverOptions.serverUrl;
+  if (!serverUrl) {
+    throw new Error(
+      `${plan.waitForAuth !== undefined ? "--wait-for-auth" : "--use-stored-auth"} requires --server-url`,
+    );
+  }
+
+  let token: string;
+  if (plan.waitForAuth !== undefined) {
+    token = await waitForStoredToken(
+      serverUrl,
+      plan.oauthStatePath,
+      plan.waitForAuth,
+    );
+  } else {
+    const servers = await readOAuthServers(plan.oauthStatePath);
+    const stored = findStoredServerState(servers, serverUrl);
+    if (stored?.state.tokens?.refresh_token) {
+      const storedAccess = stored.state.tokens.access_token;
+      try {
+        token = await refreshStoredAuthToken(serverUrl, plan.oauthStatePath);
+      } catch (error) {
+        if (!storedAccess) throw error;
+        token = storedAccess;
+      }
+    } else {
+      const found = findStoredToken(servers, serverUrl);
+      if (!found) {
+        const key = normalizeServerUrl(serverUrl);
+        const storedKeys = Object.keys(servers);
+        throw new CliExitCodeError(
+          EXIT_CODES.AUTH_REQUIRED,
+          `No stored OAuth token for ${key} in ${plan.oauthStatePath}. Complete the OAuth flow in the web inspector first.` +
+            (storedKeys.length > 0
+              ? ` Stored keys: ${storedKeys.join(", ")}.`
+              : ""),
+          { code: "no_stored_token", url: serverUrl },
+        );
+      }
+      token = found;
+    }
+  }
+  serverOptions.headers = {
+    ...(serverOptions.headers ?? {}),
+    Authorization: `Bearer ${token}`,
+  };
+  return serverOptions;
+}
+
+async function runConnectedCommand(
+  plan: CliConnectedCommandPlan,
+): Promise<void> {
+  if (plan.commandId !== MCP_INVOKE_COMMAND_ID) {
+    throw new Error(`No provider registered for command: ${plan.commandId}`);
+  }
+
+  const serverOptions = await withStoredAuth(plan);
+  const entries = await loadServerEntries(serverOptions);
+  const selected = selectServerEntry(entries, plan.serverName);
+  const serverSettings = withConnectTimeout(
+    selected.settings,
+    plan.connectTimeout ??
+      (plan.adHoc ? DEFAULT_CONNECT_TIMEOUT_MS : undefined),
+  );
+  const clientConfig = await loadRunnerClientConfig({
+    clientConfigPath: plan.clientConfigPath,
+  });
   // A bad --callback-url / MCP_OAUTH_CALLBACK_URL is a *usage* error, but its
   // messages contain "OAuth", which the exit-code heuristic (error-handler.ts)
   // would otherwise classify as AUTH_REQUIRED (exit 3) — telling an automated
@@ -1057,7 +1167,7 @@ export async function runCli(argv?: string[]): Promise<void> {
   // import CliExitCodeError, so pin the class here.
   let callbackUrlConfig: RunnerOAuthCallbackConfig;
   try {
-    callbackUrlConfig = parseRunnerOAuthCallbackUrl(callbackUrl);
+    callbackUrlConfig = parseRunnerOAuthCallbackUrl(plan.callbackUrl);
   } catch (err) {
     throw new CliExitCodeError(
       EXIT_CODES.USAGE,
@@ -1065,17 +1175,30 @@ export async function runCli(argv?: string[]): Promise<void> {
     );
   }
   await callMethod(
-    serverConfig,
+    selected.config,
     serverSettings,
-    methodArgs,
+    plan.methodArgs,
     clientConfig,
     {
-      clientId,
-      clientSecret,
-      clientMetadataUrl,
+      clientId: plan.clientId,
+      clientSecret: plan.clientSecret,
+      clientMetadataUrl: plan.clientMetadataUrl,
     },
     callbackUrlConfig,
-    storedAuthOnly === true,
-    relogin === true,
+    plan.storedAuthOnly,
+    plan.relogin,
   );
+}
+
+export async function runCli(argv?: string[]): Promise<void> {
+  const plan = createCliPlan(argv ?? process.argv);
+  if (plan.kind === "host") {
+    await runHostPlan(plan);
+    return;
+  }
+  await executeCommandPlan(plan, {
+    runWithoutConnection: runNoConnectionCommand,
+    runWithResolvedServer: runResolvedCommand,
+    runWithConnection: runConnectedCommand,
+  });
 }

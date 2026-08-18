@@ -4,8 +4,8 @@
 
 - **Purpose:** design and implementation plan for an experimental fork
 - **Maturity:** candidate architecture; public extension compatibility is not promised
-- **Implemented:** Phase 0 contracts and static built-in discovery, plus the Phase 1 execution-plan
-  type skeleton; CLI execution still uses the pre-extension parser
+- **Implemented:** Phase 0 contracts/static discovery and Phase 1 built-in command registry plus
+  CLI command planning and execution
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -65,7 +65,8 @@ contracts in this specification.
 4. Support Node and browser runtimes through separate entry points and one serializable API.
 5. Load extension code only when one of its contributions is invoked.
 6. Make built-in and third-party contributions follow the same semantic contracts.
-7. Preserve the current CLI syntax while replacing hard-coded short circuits with execution plans.
+7. Preserve the current CLI syntax while replacing hard-coded short circuits with contribution-
+  specific plans and executors.
 8. Treat session files received in bug reports as untrusted data and open them without connecting
    to or launching a server.
 
@@ -127,7 +128,7 @@ flowchart TD
 The design deliberately separates four layers:
 
 1. **Manifest and contribution catalog:** pure, isomorphic, no extension execution.
-2. **Execution planning:** host-owned validation of requirements and options.
+2. **Contribution planning:** host-owned validation of command or artifact requirements and options.
 3. **Extension runtime:** built-in activation, Node child process, or browser worker.
 4. **Brokered API:** serializable operations instead of references to `InspectorClient`, stores,
    Commander, React, or the filesystem.
@@ -221,6 +222,7 @@ type ServerSelectionRequirement = "none" | "all" | "exactly-one";
 
 interface CommandContribution {
   id: string;
+  aliases?: string[];
   title: string;
   connection: ConnectionRequirement;
   serverSelection: ServerSelectionRequirement;
@@ -234,7 +236,7 @@ Illustrative built-ins:
 | --- | --- | --- | --- |
 | `modelcontextprotocol.servers.list` | `servers/list` | all | none |
 | `modelcontextprotocol.servers.show` | `servers/show` | exactly one | resolved |
-| `modelcontextprotocol.mcp.invoke` | current `--method` flow | exactly one | connected |
+| `modelcontextprotocol.mcp.invoke` | `mcp/invoke`; current `--method` flow | exactly one | connected |
 | `modelcontextprotocol.artifacts.export` | selected by artifact export flags | exactly one | varies by artifact provider |
 
 `servers/list` and `servers/show` stop being parser short circuits. They produce ordinary execution
@@ -288,6 +290,7 @@ Candidate syntax:
 ```text
 mcp-inspector --cli --command servers/list --catalog ./mcp.json
 mcp-inspector --cli --command servers/show --server example --catalog ./mcp.json
+mcp-inspector --cli --command mcp/invoke --method tools/list node server.js
 mcp-inspector --cli --artifact-plugin mcpdesc-0.7 --encoding yaml --output server.yaml ...
 mcp-inspector --cli --artifact-plugin inspector-session --output session.json ...
 ```
@@ -308,12 +311,18 @@ Shared host option groups include server source, server selection, connection/au
 artifact encoding, and output sink. Extensions cannot redefine these names. Extension-specific
 options are namespaced in the manifest and delivered as a validated JSON-compatible object.
 
-## 8. Execution plans
+## 8. Contribution plans
 
-Parsing yields a declarative plan instead of executing catalog or authentication work:
+Each contribution family owns an explicit planning and execution lifecycle. Command and artifact
+plans remain separate because they carry different requirements: commands select servers and
+connections, while artifact plans keep format, operation, encoding, version, and output distinct.
+The shared lifecycle is **bootstrap → plan → execute**.
+
+Command parsing yields a declarative plan instead of executing catalog or authentication work:
 
 ```ts
-interface CommandExecutionPlan {
+interface CommandPlan {
+  kind: "command";
   commandId: string;
   extensionId: string;
   serverSource: ServerSourceOptions;
@@ -323,6 +332,30 @@ interface CommandExecutionPlan {
   output: OutputOptions;
 }
 ```
+
+The CLI adds a discriminated host-plan union around this shared DTO. The two pre-existing utilities
+remain host-owned operations rather than pretending to be extension contributions:
+
+```ts
+type CliHostPlan =
+  | { kind: "host"; operation: "list-stored-auth"; oauthStatePath: string }
+  | {
+      kind: "host";
+      operation: "print-handoff";
+      oauthStatePath: string;
+      serverUrl: string;
+      transport?: "sse" | "http" | "stdio";
+    };
+```
+
+Host utility plans remain outside `extensions/commands`; they are CLI operations, not extension
+contributions.
+
+Command planning is side-effect-free with respect to catalogs, OAuth state, and transports. It resolves a
+canonical contribution from static metadata and copies that contribution's selection/connection
+requirements into the plan. Dispatch keys off those requirements: `none` runs `servers/list`,
+`resolved` runs `servers/show`, and only `connected` enters client configuration, OAuth, transport,
+and MCP invocation setup.
 
 The runner applies the plan in this order:
 
@@ -338,8 +371,9 @@ The runner applies the plan in this order:
 10. write through a host-owned output sink;
 11. disconnect and deactivate as appropriate.
 
-This replaces the current binary `ParseResult` distinction between a connected invocation and a
-`shortCircuit` with a model that can represent all current paths.
+This replaces the former binary `ParseResult` distinction between a connected invocation and a
+`shortCircuit` with explicit command and host plans. Phase 2 adds a sibling artifact plan/executor
+rather than widening `CommandPlan` into a generic catch-all.
 
 ## 9. Brokered extension API
 
@@ -568,9 +602,10 @@ core/extensions/
 │   ├── artifacts.ts
 │   ├── commands.ts
 │   ├── diagnostics.ts
-│   ├── executionPlan.ts
 │   ├── json.ts
 │   └── sessions.ts                 # Phase 2
+├── commands/
+│   └── plan.ts                     # shared command-plan DTO
 ├── manifest/
 │   ├── schema.ts
 │   ├── parse.ts
@@ -579,12 +614,15 @@ core/extensions/
 │   ├── contributionRegistry.ts
 │   └── activationRegistry.ts       # Later activation phase
 ├── artifacts/
+│   ├── plan.ts                     # Phase 2 artifact plan DTO
+│   ├── execute.ts                  # Phase 2 artifact service
 │   ├── sessionArtifact.ts          # Phase 2
 │   └── serverDescriptionSnapshot.ts # Phase 3
 ├── builtin/
 │   ├── manifests.ts
 │   ├── catalog.ts
-│   ├── servers/                    # Phase 1
+│   ├── servers/
+│   │   └── catalog.ts              # Phase 1 Node catalog providers/redaction
 │   ├── inspector-session/          # Phase 2
 │   └── mcpdesc-0.7/                # Phase 3
 └── node/
@@ -593,10 +631,16 @@ core/extensions/
   └── rpc.ts                      # Phase 4
 
 clients/cli/src/extensions/
-├── bootstrap.ts
-├── optionSchema.ts
-├── executionPlan.ts
-└── runExecutionPlan.ts
+├── bootstrap.ts                    # static built-in catalog + selector resolution
+├── commands/
+│   ├── plan.ts                     # CLI command planning
+│   └── execute.ts                  # requirement-driven command execution
+└── artifacts/                      # Phase 2
+  ├── plan.ts
+  └── execute.ts
+
+clients/cli/src/host/
+└── plan.ts                         # non-extension CLI utility plans
 
 clients/web/src/lib/extensions/
 ├── extensionCatalog.ts
@@ -611,6 +655,9 @@ clients/web/src/components/extensions/
 
 Exact files should be introduced only in the phase that uses them. Do not create empty framework
 directories.
+
+Dynamic option-schema wiring is intentionally deferred until a phase introduces contributions that
+declare extension-specific options; Phase 1 has only host-owned options.
 
 If truly external packages are added later, place development fixtures under a dedicated
 `extensions/fixtures/` tree only after updating:
@@ -640,11 +687,15 @@ Exit criteria:
 - malformed contributions fail deterministically;
 - no public package or dynamic code loading exists.
 
-### Phase 1 — Command registry and CLI execution plans
+### Phase 1 — Command registry and CLI command lifecycle
+
+**Status: implemented.** The static registry contains `modelcontextprotocol.mcp.invoke`,
+`modelcontextprotocol.servers.list`, and `modelcontextprotocol.servers.show`; the CLI accepts each
+canonical ID and short alias while preserving all `--method` forms and host utility precedence.
 
 Deliverables:
 
-- replace `ParseResult.shortCircuit` with execution plans;
+- replace `ParseResult.shortCircuit` with explicit command and host plans;
 - register MCP invocation, `servers/list`, and `servers/show` as built-in commands;
 - move reusable server list/show and redaction behavior into shared Node code;
 - preserve all existing CLI forms and exit/output behavior;
@@ -773,7 +824,7 @@ Required test groups:
 
 1. manifest/schema/compatibility table tests;
 2. contribution collision and activation lifecycle tests;
-3. execution-plan tests for every connection/selection requirement;
+3. command-plan tests for every connection/selection requirement;
 4. redaction canary and hostile-input tests;
 5. native session round-trip and migration tests;
 6. MCP Description schema conformance and partial-capability tests;
@@ -806,7 +857,7 @@ Documentation changes are deliverables, not cleanup:
 | Public API freezes too early | built-ins first; proposed API; publish contracts only after external sample succeeds |
 | Node process mistaken for a sandbox | explicit trust language; no security claims; consider OS sandboxing separately |
 | Plugins depend on Inspector internals | brokered DTO API; no `core/`, SDK object, store, or React references |
-| CLI compatibility regression | execution plans behind existing syntax; broad current-test preservation |
+| CLI compatibility regression | command plans behind existing syntax; broad current-test preservation |
 | Session leaks credentials | centralized redaction, canary tests, no implicit secret capability |
 | Session artifact becomes an executable config | read-only open by default; explicit trust before reconnect/launch |
 | Browser plugin compromises UI | worker logic, sandboxed iframe, CSP, validated messages, no React injection |
@@ -817,7 +868,8 @@ Documentation changes are deliverables, not cleanup:
 ## 17. Decisions still required
 
 1. Exact session artifact schema, attachment strategy, maximum sizes, and migration policy.
-2. Whether the first CLI selector is `--command`, a subcommand namespace, or both.
+2. **Resolved for Phase 1:** use `--command` with short or canonical selectors; retain `--method`
+  compatibility aliases and do not add a subcommand namespace yet.
 3. Whether `--artifact-plugin` remains the public spelling or becomes `--artifact-format` before
    release. The manifest model supports either without changing provider contracts.
 4. Which server fields the broker exposes to artifact providers and which always remain host-only.
@@ -827,13 +879,12 @@ Documentation changes are deliverables, not cleanup:
    package during development.
 8. Which APIs, if any, TUI exposes beyond shared commands and artifacts.
 
-## 18. Recommended first implementation slice
+## 18. Recommended next implementation slice
 
-The first pull request should implement only Phase 0 plus the execution-plan type skeleton from
-Phase 1. The second should migrate `servers/list` and `servers/show`. The third should add the
-native artifact contract and one minimal session export. This sequence validates discovery,
-no-connection commands, and connected/session data before introducing MCP Description mapping or
-external code execution.
+Phase 0 and Phase 1 now validate static discovery, canonical/short command selection,
+no-connection commands, and connected MCP invocation. The next independent slice is Phase 2's
+native artifact contract and one minimal session export; it must not pull in external loading, the
+browser host, or MCP Description mapping prematurely.
 
 Do not combine the child-process host, browser viewer, session schema, and MCP Description exporter
 in one change. Each introduces a different compatibility and security boundary and needs an

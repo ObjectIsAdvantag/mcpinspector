@@ -83,6 +83,35 @@ describe("InspectorExtensionManifestSchema", () => {
     }
   });
 
+  it("rejects duplicate command selectors", () => {
+    const manifest = structuredClone(VALID_MANIFEST);
+    manifest.contributes.commands!.push({
+      id: "example.commands.other",
+      aliases: ["commands/inspect"],
+      title: "Other command",
+      connection: "none",
+      serverSelection: "none",
+    });
+    const result = InspectorExtensionManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          message: "Duplicate command selector: commands/inspect",
+          path: ["contributes", "commands", 1, "aliases", 0],
+        }),
+      );
+    }
+  });
+
+  it("rejects an alias that duplicates a canonical command id", () => {
+    const manifest = structuredClone(VALID_MANIFEST);
+    manifest.contributes.commands![0]!.aliases = ["example.commands.inspect"];
+    expect(InspectorExtensionManifestSchema.safeParse(manifest).success).toBe(
+      false,
+    );
+  });
+
   it("reports numeric indexes in parsed diagnostic paths", () => {
     const manifest = structuredClone(VALID_MANIFEST);
     manifest.contributes.commands!.push({

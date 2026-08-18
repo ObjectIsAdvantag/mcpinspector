@@ -1,6 +1,11 @@
 # MCP Inspector CLI Client
 
-CLI for the Inspector: connect, run a `--method`, disconnect. Invoked as `mcp-inspector --cli`.
+CLI for the Inspector, invoked as `mcp-inspector --cli`.
+
+Either connect to a server, run a `--method`, disconnect
+
+Or execute an command directly using `--command` such as `--command servers/show`
+
 
 ## Running the CLI
 
@@ -10,7 +15,7 @@ You can run the CLI via `npx`:
 npx @modelcontextprotocol/inspector --cli node build/index.js
 ```
 
-Supports tools, resources, and prompts (plus `--method servers/list` / `servers/show` for catalog entries without connecting).
+Supports tools, resources, and prompts through the built-in MCP invocation command, plus server catalog list/show commands that never connect.
 
 > Coming from the v1 CLI? See the [v1 → v2 migration guide](../../docs/v1-to-v2-migration.md) — every v1 flag still exists, but exit codes, argument ordering, and the `--` separator changed.
 
@@ -58,6 +63,18 @@ npx @modelcontextprotocol/inspector --cli node build/index.js --method resources
 npx @modelcontextprotocol/inspector --cli node build/index.js --method prompts/list
 ```
 
+**List configured servers without connecting**
+
+```bash
+npx @modelcontextprotocol/inspector --cli --command servers/list --catalog path/to/mcp.json
+```
+
+**Show one redacted server configuration without connecting**
+
+```bash
+npx @modelcontextprotocol/inspector --cli --command servers/show --catalog path/to/mcp.json --server myserver
+```
+
 ### Remote Servers
 
 You can also connect to remote MCP servers using HTTP or SSE transports.
@@ -100,9 +117,23 @@ Options that specify the MCP server (catalog/config file, ad-hoc command/URL, en
 
 ### CLI-specific (what to invoke)
 
+The CLI resolves command selectors from the static built-in contribution registry. Short selectors
+and canonical IDs are equivalent:
+
+| Short selector | Canonical command ID | Server requirement |
+| -------------- | -------------------- | ------------------ |
+| `mcp/invoke` | `modelcontextprotocol.mcp.invoke` | Exactly one connected server |
+| `servers/list` | `modelcontextprotocol.servers.list` | All configured servers; no connection |
+| `servers/show` | `modelcontextprotocol.servers.show` | Exactly one resolved server; no connection |
+
+Existing `--method <mcp-method>` invocations implicitly select `mcp/invoke`. For compatibility,
+`--method servers/list` and `--method servers/show` remain aliases for the two server commands.
+An explicit `--command mcp/invoke` still requires `--method`; the server commands do not.
+
 | Option                        | Description                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--method <method>`           | MCP method to invoke. Supports `initialize` (connect-only probe → `{serverInfo, protocolVersion, capabilities, instructions}`), `tools/list`, `tools/call`, `resources/list`, `resources/read`, `resources/templates/list`, `prompts/list`, `prompts/get`, `logging/setLevel`, plus catalog-only `servers/list` / `servers/show` (no MCP connect). Stream / session-only methods (e.g. `logging/tail`) are rejected. |
+| `--command <selector>`        | Built-in Inspector command, using a short selector or canonical ID from the table above. Optional when `--method` selects the command implicitly.                                                                                                                                                                                                                                                                    |
+| `--method <method>`           | MCP method to invoke through `mcp/invoke`. Supports `initialize` (connect-only probe → `{serverInfo, protocolVersion, capabilities, instructions}`), `tools/list`, `tools/call`, `resources/list`, `resources/read`, `resources/templates/list`, `prompts/list`, `prompts/get`, and `logging/setLevel`. `servers/list` / `servers/show` remain compatibility aliases. Stream/session methods are rejected. |
 | `--tool-name <name>`          | Tool name (for `tools/call`).                                                                                                                                                                                                                                                                                                                                                                                        |
 | `--tool-arg <key=value>`      | Tool argument; repeat for multiple. Use `key='{"json":true}'` for JSON. Values are coerced (JSON-parsed, so `count=1` becomes a number).                                                                                                                                                                                                                                                                             |
 | `--tool-args-json <json>`     | Tool arguments as a single JSON object (e.g. `'{"zip":"10001"}'`). Passed verbatim — no `key=value` coercion, so `"012"` stays a string. Mutually exclusive with `--tool-arg`.                                                                                                                                                                                                                                       |
@@ -115,7 +146,7 @@ Options that specify the MCP server (catalog/config file, ad-hoc command/URL, en
 | `--connect-timeout <ms>`      | Connection timeout in ms. Defaults to `15000` for ad-hoc `--server-url`/target runs (so a black-holed host fails fast) and to the file-level timeout for `--catalog`/`--config` runs. `0` disables the timeout.                                                                                                                                                                                                      |
 | `--app-info`                  | Probe a tool's MCP App UI metadata without invoking it. With `--method tools/call --tool-name <name>`: prints one JSON line (`hasApp`, `resourceUri`, `csp`, `permissions`, `domain`, …) and exits `0` if the tool has an app or `2` (`no_app`) if not. With `--method tools/list`: emits NDJSON — one app-info line per tool over a single connection.                                                              |
 | `--format <text\|json>`       | Output format. `text` (default) pretty-prints the result. `json` emits a single JSON object on stdout (`{ "result": … }`, plus `{ "appInfo": … }` as a sibling key for App tools) with no banners, so the whole output pipes cleanly into `jq`.                                                                                                                                                                      |
-| `--relogin`                   | Delete stored OAuth for this server URL from the shared store before connect; interactive login still only runs if the server requires auth. Requires an HTTP/SSE URL (rejected for stdio). Conflicts with `--stored-auth-only` / `--use-stored-auth` / `--wait-for-auth` / catalog short-circuits.                                                                                                                  |
+| `--relogin`                   | Delete stored OAuth for this server URL from the shared store before connect; interactive login still only runs if the server requires auth. Requires an HTTP/SSE URL (rejected for stdio). Conflicts with `--stored-auth-only` / `--use-stored-auth` / `--wait-for-auth` / no-connection server commands.                                                                                                        |
 | `--stored-auth-only`          | **CI / non-interactive safe:** never start interactive OAuth / step-up (and never auto-open a browser); use the shared store if present, otherwise fail immediately with `auth_required`. Prefer this over a bare pipe/CI run that would otherwise attempt interactive login.                                                                                                                                        |
 
 `servers/show` redacts secret-bearing fields (`env` values, sensitive headers / `settings.metadata` keys, `requestInit` / `eventSourceInit` headers, `oauthClientSecret`). It does **not** scrub credentials embedded in a server `url` (userinfo or query tokens) or in stdio `args` — treat `detail` / raw URL fields as potentially sensitive before pasting into issues.
@@ -217,7 +248,7 @@ For the common case where OAuth was already completed in the **web inspector on 
 
 Because there is no stored expiry, a `refresh_token` is refreshed on every `--use-stored-auth` run. Two consequences with rotating refresh tokens: two concurrent invocations against the same state file race the single-use token (one wins), and a crash between a successful grant and the write-back leaves the rotated token unsaved. Both are narrow; re-authorize in the web inspector to recover.
 
-**Short-circuit modes.** `--list-stored-auth` and `--print-handoff` each print their output and exit without connecting to a server; they ignore the method/target flags. They are mutually exclusive — if both are passed, `--list-stored-auth` takes precedence.
+**Host utility plans.** `--list-stored-auth` and `--print-handoff` each produce an explicit host-owned plan, print their output, and exit without resolving or connecting to a server. They ignore command/method/target selectors. If both are passed, `--list-stored-auth` keeps its existing precedence.
 
 The `deepLink` is the canonical web deep-link ([#1576](https://github.com/modelcontextprotocol/inspector/issues/1576)) — `http://<host>:<port>/?serverUrl=<url>&transport=<http|sse>&autoConnect=<token>` — so navigating it in a browser reaches a connected inspector in one shot. `transport` is derived from the resolved server (`--transport`, else auto-detected from the URL path: `/sse` → `sse`, else `http`), not hardcoded. `autoConnect` is set to `MCP_INSPECTOR_API_TOKEN`; when that env var is unset the link is still emitted but a `note` field flags that the web app's `autoConnect` gate will reject it until the inspector is launched with a known token.
 

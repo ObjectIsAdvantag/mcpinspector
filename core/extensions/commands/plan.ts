@@ -1,8 +1,8 @@
 import type {
   ConnectionRequirement,
   ServerSelectionRequirement,
-} from "./commands.js";
-import type { ExtensionJsonObject } from "./json.js";
+} from "../api/commands.js";
+import type { ExtensionJsonObject } from "../api/json.js";
 
 export type ServerSourceOptions =
   | { kind: "default-catalog" }
@@ -20,11 +20,12 @@ export interface OutputOptions {
 }
 
 /**
- * Host-owned plan produced after contribution selection and option validation.
- * This is a contract skeleton only; the current CLI parser is migrated to it in
- * the next Phase 1 slice.
+ * Host-owned command plan produced after contribution selection and option
+ * validation. The canonical contribution id is persisted even when a
+ * human-facing alias selected the command.
  */
-export interface CommandExecutionPlan {
+export interface CommandPlan {
+  kind: "command";
   commandId: string;
   extensionId: string;
   serverSource: ServerSourceOptions;

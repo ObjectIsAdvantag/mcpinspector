@@ -62,6 +62,7 @@ const PackageEntrypointSchema = z
 const CommandContributionSchema: z.ZodType<CommandContribution> = z
   .object({
     id: ContributionIdentifierSchema,
+    aliases: z.array(ContributionIdentifierSchema).optional(),
     title: z.string().trim().min(1),
     connection: ConnectionRequirementSchema,
     serverSelection: ServerSelectionRequirementSchema,
@@ -183,6 +184,28 @@ export const InspectorExtensionManifestSchema = ManifestShapeSchema.superRefine(
       ["contributes", "artifactFormats"],
       ctx,
     );
+
+    const canonicalCommandIds = new Set(commands.map(({ id }) => id));
+    const commandSelectors = new Set<string>();
+    commands.forEach((command, commandIndex) => {
+      commandSelectors.add(command.id);
+      (command.aliases ?? []).forEach((alias, aliasIndex) => {
+        if (canonicalCommandIds.has(alias) || commandSelectors.has(alias)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Duplicate command selector: ${alias}`,
+            path: [
+              "contributes",
+              "commands",
+              commandIndex,
+              "aliases",
+              aliasIndex,
+            ],
+          });
+        }
+        commandSelectors.add(alias);
+      });
+    });
 
     const commandIds = new Set(commands.map(({ id }) => id));
     artifactFormats.forEach(({ id }, index) => {

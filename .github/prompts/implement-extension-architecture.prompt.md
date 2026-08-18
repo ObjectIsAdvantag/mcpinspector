@@ -1,6 +1,6 @@
 ---
 name: "Implement Extension Architecture Slice"
-description: "Implement a requested Inspector extension architecture phase or slice, including extension manifests, contribution registries, execution plans, artifact formats, built-in extensions, runtime hosts, tests, and documentation."
+description: "Implement a requested Inspector extension architecture phase or slice, including extension manifests, contribution registries, command and artifact plans, built-in extensions, runtime hosts, tests, and documentation."
 argument-hint: "Phase or implementation slice to implement, with any constraints or acceptance criteria"
 agent: agent
 ---
