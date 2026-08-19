@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INSPECTOR_SESSION_PROVIDER } from "@inspector/core/extensions/builtin/inspector-session/provider.js";
+import { INSPECTOR_SESSION_ARTIFACT_PROVIDER } from "@inspector/core/extensions/builtin/inspector-session/artifact.js";
 import {
   buildNativeSessionArtifact,
   SESSION_REDACTED_VALUE,
@@ -255,9 +255,12 @@ describe("native session parsing", () => {
   });
 });
 
-describe("INSPECTOR_SESSION_PROVIDER", () => {
+describe("INSPECTOR_SESSION_ARTIFACT_PROVIDER", () => {
   it("exports and validates native JSON payloads", () => {
-    const result = INSPECTOR_SESSION_PROVIDER.export(snapshotInput(), {});
+    const result = INSPECTOR_SESSION_ARTIFACT_PROVIDER.export(
+      snapshotInput(),
+      {},
+    );
     expect(result).not.toBeInstanceOf(Promise);
     if (result instanceof Promise || result.payload === undefined) {
       throw new Error("Expected a synchronous artifact payload");
@@ -269,11 +272,13 @@ describe("INSPECTOR_SESSION_PROVIDER", () => {
       encoding: "json",
       mediaType: INSPECTOR_SESSION_MEDIA_TYPE,
     });
-    expect(INSPECTOR_SESSION_PROVIDER.validate(result.payload)).toEqual([]);
+    expect(
+      INSPECTOR_SESSION_ARTIFACT_PROVIDER.validate(result.payload),
+    ).toEqual([]);
   });
 
   it("rejects invalid snapshot input and payload metadata/content", () => {
-    const invalidExport = INSPECTOR_SESSION_PROVIDER.export({}, {});
+    const invalidExport = INSPECTOR_SESSION_ARTIFACT_PROVIDER.export({}, {});
     if (invalidExport instanceof Promise) {
       throw new Error("Expected a synchronous artifact result");
     }
@@ -286,12 +291,12 @@ describe("INSPECTOR_SESSION_PROVIDER", () => {
       content: "{}",
     };
     expect(
-      INSPECTOR_SESSION_PROVIDER.validate({
+      INSPECTOR_SESSION_ARTIFACT_PROVIDER.validate({
         ...validPayload,
         mediaType: "application/json",
       }),
     ).toEqual([expect.objectContaining({ code: "artifact.payload-invalid" })]);
-    expect(INSPECTOR_SESSION_PROVIDER.validate(validPayload)).toEqual(
+    expect(INSPECTOR_SESSION_ARTIFACT_PROVIDER.validate(validPayload)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: "artifact.schema-invalid" }),
       ]),

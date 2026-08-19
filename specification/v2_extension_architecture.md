@@ -94,7 +94,8 @@ contracts in this specification.
   API.
 - **Native session artifact:** the Inspector-owned lossless, redacted JSON representation used for
   record, replay, share, and audit transcript work.
-- **Provider:** the runtime implementation registered for a declared contribution.
+- **Handler:** the runtime implementation registered for a declared contribution. An artifact
+  format handler owns export and validation behavior, but never owns filesystem or stdout access.
 
 Use namespaced identifiers. Human-facing aliases may be shorter, but persisted identifiers are
 never bare names such as `dump` or `list`.
@@ -237,7 +238,7 @@ Illustrative built-ins:
 | `modelcontextprotocol.servers.list` | `servers/list` | all | none |
 | `modelcontextprotocol.servers.show` | `servers/show` | exactly one | resolved |
 | `modelcontextprotocol.mcp.invoke` | `mcp/invoke`; current `--method` flow | exactly one | connected |
-| `modelcontextprotocol.artifacts.export` | selected by artifact export flags | exactly one | varies by artifact provider |
+| `modelcontextprotocol.artifacts.export` | selected by artifact export flags | exactly one | varies by artifact format handler |
 
 `servers/list` and `servers/show` stop being parser short circuits. They produce ordinary execution
 plans whose declared requirements cause the host to skip authentication and connection. The
@@ -283,7 +284,7 @@ and `panels`) remain proposed until at least two real built-in consumers establi
 
 The extension does not take unrestricted ownership of `argv`. The host performs a bootstrap parse,
 resolves a declared contribution, adds the contribution's schema-defined options, and returns a
-validated object to the provider.
+validated object to the handler.
 
 Candidate syntax:
 
@@ -366,7 +367,7 @@ The runner applies the plan in this order:
 5. prepare authentication only when a connection is required;
 6. establish the MCP connection only when required;
 7. activate the extension lazily;
-8. invoke the provider with cancellation and timeout support;
+8. invoke the handler with cancellation and timeout support;
 9. validate the result envelope;
 10. write through a host-owned output sink;
 11. disconnect and deactivate as appropriate.
@@ -502,7 +503,7 @@ transcript described in the roadmap. OTLP is a projection of this artifact, not 
 
 Canonical ID: `modelcontextprotocol.mcpdesc-0.7`.
 
-The provider:
+The format handler:
 
 1. requests a fresh `ServerDescriptionSnapshot` from the host;
 2. projects SDK/Inspector DTOs through a version-specific allowlist;
@@ -527,7 +528,7 @@ diagnostics, but production discovery must not claim that export is supported.
 When 0.8 is available:
 
 - add a separate schema, mapper, fixtures, and compatibility tests;
-- keep the 0.7 provider unchanged;
+- keep the 0.7 format handler unchanged;
 - share collection only where the source requirements are identical;
 - allow the extension package version to evolve without changing either artifact ID.
 
@@ -535,7 +536,7 @@ When 0.8 is available:
 
 ### Built-in runtime
 
-Built-ins are statically registered and bundled. They use the same provider interfaces and result
+Built-ins are statically registered and bundled. They use the same handler interfaces and result
 validation as external extensions, but do not pay a process boundary initially. This phase proves
 the contracts, not the isolation mechanism.
 
@@ -615,7 +616,7 @@ core/extensions/
 │   └── activationRegistry.ts       # Later activation phase
 ├── artifacts/
 │   ├── plan.ts                     # shared artifact-plan DTO
-│   ├── service.ts                  # provider registry + host-owned output dispatch
+│   ├── service.ts                  # format-handler registry + host-owned output dispatch
 │   └── serverDescriptionSnapshot.ts # Phase 3
 ├── builtin/
 │   ├── manifests.ts
@@ -624,7 +625,7 @@ core/extensions/
 │   │   └── catalog.ts              # Phase 1 Node catalog providers/redaction
 │   ├── inspector-session/
 │   │   ├── snapshot.ts             # shared builder + redaction policy
-│   │   └── provider.ts             # native JSON export/validation provider
+│   │   └── artifact.ts             # native JSON export and validation behavior
 │   └── mcpdesc-0.7/                # Phase 3
 └── node/
   ├── extensionHost.ts            # Phase 4
@@ -714,18 +715,18 @@ Exit criteria:
 
 **Status: foundation and CLI capture/export implemented.** The static catalog now advertises
 `modelcontextprotocol.inspector-session-1` for JSON export and validation. Shared code provides
-artifact plan/provider/output-sink contracts, a v1 native schema, a bounded untrusted parser, a
+artifact plan/format-handler/output contracts, a v1 native schema, a bounded untrusted parser, a
 snapshot builder, and centralized recursive redaction. The builder accepts only serializable DTOs
 from surface-specific adapters; it does not reach into clients, stores, React, or transports.
 
 The parser rejects malformed JSON, artifacts above the host limit, other format IDs, and unsupported
 versions before replay. Same-version unknown JSON fields survive parse/serialize round trips. The
-native provider never writes directly to stdout or the filesystem: validated payloads flow through
-a host-owned output sink.
+native format handler never writes directly to stdout or the filesystem: validated payloads flow
+through host-owned artifact output.
 
 The CLI now wraps a connected command and a separate artifact plan, captures the live invocation
 through a serializable snapshot-source adapter, and writes validated artifact content through
-host-owned stdout or atomic file sinks. A stdout artifact suppresses the ordinary method result so
+host-owned stdout or atomic file output. A stdout artifact suppresses the ordinary method result so
 the stream remains one machine-clean document; a file export preserves the ordinary result on
 stdout. Export failures are fatal rather than silently claiming success.
 
@@ -734,7 +735,7 @@ read-only import/replay stores.
 
 Deliverables:
 
-- artifact provider registration and output sinks;
+- artifact format-handler registration and host-owned output;
 - native session schema/version and redaction policy;
 - shared snapshot builder;
 - CLI snapshot adapter for the current connected invocation;
@@ -894,8 +895,9 @@ Documentation changes are deliverables, not cleanup:
 2. **Resolved for Phase 1:** use `--command` with short or canonical selectors; retain `--method`
   compatibility aliases and do not add a subcommand namespace yet.
 3. Whether `--artifact-plugin` remains the public spelling or becomes `--artifact-format` before
-   release. The manifest model supports either without changing provider contracts.
-4. Which server fields the broker exposes to artifact providers and which always remain host-only.
+  release. The manifest model supports either without changing handler contracts.
+4. Which server fields the broker exposes to artifact format handlers and which always remain
+  host-only.
 5. Whether external Node extensions are acceptable without OS sandboxing in the fork.
 6. How extension trust and enablement are persisted per user versus per catalog/workspace.
 7. Whether external extension packages use a custom archive immediately or a constrained npm

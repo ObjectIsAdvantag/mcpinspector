@@ -3,7 +3,7 @@ import type {
   ArtifactExportResult,
   ArtifactPayload,
 } from "../../api/artifacts.js";
-import type { ArtifactProvider } from "../../artifacts/service.js";
+import type { ArtifactFormatHandler } from "../../artifacts/service.js";
 import type { ExtensionJsonObject } from "../../api/json.js";
 import {
   INSPECTOR_SESSION_ARTIFACT_VERSION,
@@ -25,7 +25,8 @@ function metadataDiagnostic(message: string): ArtifactDiagnostic[] {
   ];
 }
 
-export const INSPECTOR_SESSION_PROVIDER: ArtifactProvider = {
+/** Native session export and validation behavior for the artifact service. */
+export const INSPECTOR_SESSION_ARTIFACT_PROVIDER: ArtifactFormatHandler = {
   formatId: INSPECTOR_SESSION_FORMAT_ID,
   export(
     data: ExtensionJsonObject,

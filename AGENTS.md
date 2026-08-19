@@ -41,7 +41,8 @@ v2/main/
 │   │   └── static/                     # sandbox_proxy.html (served by sandbox-controller for MCP Apps tab)
 │   ├── cli/                            # CLI client (tsup bundle, @inspector/core alias;
 │   │                                   #   registry bootstrap plus command/artifact plan/execute
-│   │                                   #   lifecycle and session snapshot/sinks in src/extensions/,
+│   │                                   #   lifecycle, session snapshot capture, and artifact output
+│   │                                   #   in src/extensions/,
 │   │                                   #   host-only plans in src/host/)
 │   ├── tui/                            # TUI client (Ink + React, tsup bundle)
 │   ├── launcher/                       # Shared launcher (relative imports into sibling build/ outputs)
@@ -81,7 +82,7 @@ v2/main/
 │   ├── extensions/                     # Extension contracts: manifest validation,
 │   │                                   #   compatibility diagnostics, contribution catalogs,
 │   │                                   #   built-in metadata, command/artifact plan DTOs, the
-│   │                                   #   native-session schema/provider/redaction builder, plus
+│   │                                   #   native-session schema/format handler/redaction builder, plus
 │   │                                   #   the Node-only built-in server catalog provider.
 │   │                                   #   Tests in clients/web/src/test/core/extensions/.
 │   ├── json/                           # JSON utilities and parameter/argument conversion

@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBuiltinContributionCatalog } from "@inspector/core/extensions/builtin/catalog.js";
-import { INSPECTOR_SESSION_PROVIDER } from "@inspector/core/extensions/builtin/inspector-session/provider.js";
+import { INSPECTOR_SESSION_ARTIFACT_PROVIDER } from "@inspector/core/extensions/builtin/inspector-session/artifact.js";
 import {
   INSPECTOR_SESSION_ARTIFACT_VERSION,
   INSPECTOR_SESSION_FORMAT_ID,
   INSPECTOR_SESSION_MEDIA_TYPE,
 } from "@inspector/core/extensions/api/sessions.js";
 import {
-  ArtifactProviderRegistry,
+  ArtifactFormatHandlerRegistry,
   executeArtifactExport,
   type ArtifactOutputSink,
-  type ArtifactProvider,
+  type ArtifactFormatHandler,
 } from "@inspector/core/extensions/artifacts/service.js";
 import type { ArtifactPlan } from "@inspector/core/extensions/artifacts/plan.js";
 import type { ArtifactPayload } from "@inspector/core/extensions/api/artifacts.js";
@@ -54,43 +54,43 @@ function payload(overrides: Partial<ArtifactPayload> = {}): ArtifactPayload {
 }
 
 function setup() {
-  const registry = new ArtifactProviderRegistry(
+  const registry = new ArtifactFormatHandlerRegistry(
     createBuiltinContributionCatalog(HOST),
   );
   const write = vi.fn<ArtifactOutputSink["write"]>();
   return { registry, sink: { write }, write };
 }
 
-describe("ArtifactProviderRegistry", () => {
-  it("registers and resolves a provider declared by the contribution catalog", () => {
+describe("ArtifactFormatHandlerRegistry", () => {
+  it("registers and resolves a handler declared by the contribution catalog", () => {
     const { registry } = setup();
-    registry.register(INSPECTOR_SESSION_PROVIDER);
+    registry.register(INSPECTOR_SESSION_ARTIFACT_PROVIDER);
     expect(registry.resolve(INSPECTOR_SESSION_FORMAT_ID)).toBe(
-      INSPECTOR_SESSION_PROVIDER,
+      INSPECTOR_SESSION_ARTIFACT_PROVIDER,
     );
     expect(registry.resolve("example.missing")).toBeUndefined();
   });
 
-  it("rejects undeclared and duplicate providers", () => {
+  it("rejects undeclared and duplicate handlers", () => {
     const { registry } = setup();
     expect(() =>
       registry.register({
-        ...INSPECTOR_SESSION_PROVIDER,
+        ...INSPECTOR_SESSION_ARTIFACT_PROVIDER,
         formatId: "example.missing",
       }),
     ).toThrow(/has no contribution/);
 
-    registry.register(INSPECTOR_SESSION_PROVIDER);
-    expect(() => registry.register(INSPECTOR_SESSION_PROVIDER)).toThrow(
-      /already registered/,
-    );
+    registry.register(INSPECTOR_SESSION_ARTIFACT_PROVIDER);
+    expect(() =>
+      registry.register(INSPECTOR_SESSION_ARTIFACT_PROVIDER),
+    ).toThrow(/already registered/);
   });
 });
 
 describe("executeArtifactExport", () => {
-  it("exports through a registered provider and host-owned sink", async () => {
+  it("exports through a registered handler and host-owned output", async () => {
     const { registry, sink, write } = setup();
-    registry.register(INSPECTOR_SESSION_PROVIDER);
+    registry.register(INSPECTOR_SESSION_ARTIFACT_PROVIDER);
 
     const diagnostics = await executeArtifactExport(
       plan(),
@@ -109,7 +109,7 @@ describe("executeArtifactExport", () => {
     );
   });
 
-  it("rejects non-export plans and missing providers before writing", async () => {
+  it("rejects non-export plans and missing handlers before writing", async () => {
     const { registry, sink, write } = setup();
 
     await expect(
@@ -120,15 +120,15 @@ describe("executeArtifactExport", () => {
     await expect(
       executeArtifactExport(plan(), data(), registry, sink),
     ).resolves.toEqual([
-      expect.objectContaining({ code: "artifact.provider-missing" }),
+      expect.objectContaining({ code: "artifact.handler-missing" }),
     ]);
     expect(write).not.toHaveBeenCalled();
   });
 
   it("does not write when export returns no payload", async () => {
     const { registry, sink, write } = setup();
-    const provider: ArtifactProvider = {
-      ...INSPECTOR_SESSION_PROVIDER,
+    const handler: ArtifactFormatHandler = {
+      ...INSPECTOR_SESSION_ARTIFACT_PROVIDER,
       export: () => ({
         diagnostics: [
           {
@@ -140,7 +140,7 @@ describe("executeArtifactExport", () => {
         ],
       }),
     };
-    registry.register(provider);
+    registry.register(handler);
 
     await expect(
       executeArtifactExport(plan(), data(), registry, sink),
@@ -150,11 +150,11 @@ describe("executeArtifactExport", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
-  it("rejects mismatched provider metadata before validation or output", async () => {
+  it("rejects mismatched handler metadata before validation or output", async () => {
     const { registry, sink, write } = setup();
-    const validate = vi.fn<ArtifactProvider["validate"]>(() => []);
+    const validate = vi.fn<ArtifactFormatHandler["validate"]>(() => []);
     registry.register({
-      ...INSPECTOR_SESSION_PROVIDER,
+      ...INSPECTOR_SESSION_ARTIFACT_PROVIDER,
       export: () => ({
         payload: payload({ artifactVersion: "9.0.0" }),
         diagnostics: [],
@@ -171,15 +171,15 @@ describe("executeArtifactExport", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
-  it("preserves provider diagnostics and blocks output on validation errors", async () => {
+  it("preserves handler diagnostics and blocks output on validation errors", async () => {
     const { registry, sink, write } = setup();
     registry.register({
-      ...INSPECTOR_SESSION_PROVIDER,
+      ...INSPECTOR_SESSION_ARTIFACT_PROVIDER,
       export: () => ({
         payload: payload(),
         diagnostics: [
           {
-            code: "artifact.provider-note",
+            code: "artifact.handler-note",
             severity: "warning",
             message: "Partial data",
             path: [],
@@ -199,7 +199,7 @@ describe("executeArtifactExport", () => {
     await expect(
       executeArtifactExport(plan(), data(), registry, sink),
     ).resolves.toEqual([
-      expect.objectContaining({ code: "artifact.provider-note" }),
+      expect.objectContaining({ code: "artifact.handler-note" }),
       expect.objectContaining({ code: "artifact.validation-failed" }),
     ]);
     expect(write).not.toHaveBeenCalled();

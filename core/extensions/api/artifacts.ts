@@ -32,7 +32,7 @@ export interface ArtifactFormatContribution {
 
 export type ArtifactDiagnosticSeverity = "info" | "warning" | "error";
 
-/** Stable, serializable diagnostic returned by artifact providers. */
+/** Stable, serializable diagnostic returned by artifact format handlers. */
 export interface ArtifactDiagnostic {
   code: string;
   severity: ArtifactDiagnosticSeverity;

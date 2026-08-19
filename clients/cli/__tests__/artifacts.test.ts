@@ -217,7 +217,7 @@ describe("CLI artifact planning and snapshot adaptation", () => {
     ).toThrow();
   });
 
-  it("fails when the selected provider cannot execute the plan", async () => {
+  it("fails when the selected format handler cannot execute the plan", async () => {
     await expect(
       executeCliArtifactExport(
         {
@@ -233,6 +233,6 @@ describe("CLI artifact planning and snapshot adaptation", () => {
         },
         {},
       ),
-    ).rejects.toThrow(/No provider is registered/);
+    ).rejects.toThrow(/No handler is registered/);
   });
 });

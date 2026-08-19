@@ -8,7 +8,7 @@ export * from "./artifacts/service.js";
 export * from "./commands/plan.js";
 export * from "./builtin/catalog.js";
 export * from "./builtin/manifests.js";
-export * from "./builtin/inspector-session/provider.js";
+export * from "./builtin/inspector-session/artifact.js";
 export * from "./builtin/inspector-session/snapshot.js";
 export * from "./manifest/compatibility.js";
 export * from "./manifest/parse.js";
