@@ -5,7 +5,7 @@
 - **Purpose:** design and implementation plan for an experimental fork
 - **Maturity:** candidate architecture; public extension compatibility is not promised
 - **Implemented:** Phase 0 contracts/static discovery, Phase 1 built-in command registry and CLI
-  command lifecycle, and the Phase 2 artifact/native-session foundation
+  command lifecycle, and the Phase 2 artifact/native-session foundation plus CLI capture/export
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -638,7 +638,9 @@ clients/cli/src/extensions/
 │   └── execute.ts                  # requirement-driven command execution
 └── artifacts/                      # Phase 2
   ├── plan.ts
-  └── execute.ts
+  ├── execute.ts
+  ├── snapshot-source.ts            # connected invocation → serializable DTO
+  └── output-sink.ts                # host-owned stdout / atomic file writes
 
 clients/cli/src/host/
 └── plan.ts                         # non-extension CLI utility plans
@@ -710,7 +712,7 @@ Exit criteria:
 
 ### Phase 2 — Artifact service and native session format
 
-**Status: foundation implemented.** The static catalog now advertises
+**Status: foundation and CLI capture/export implemented.** The static catalog now advertises
 `modelcontextprotocol.inspector-session-1` for JSON export and validation. Shared code provides
 artifact plan/provider/output-sink contracts, a v1 native schema, a bounded untrusted parser, a
 snapshot builder, and centralized recursive redaction. The builder accepts only serializable DTOs
@@ -721,9 +723,14 @@ versions before replay. Same-version unknown JSON fields survive parse/serialize
 native provider never writes directly to stdout or the filesystem: validated payloads flow through
 a host-owned output sink.
 
-Still to implement in this phase are the CLI/Web snapshot-source adapters, CLI artifact routing,
-Web download action, and read-only import/replay stores. Until those adapters exist, the registered
-provider is an internal built-in contract and no new user-facing export flag is claimed.
+The CLI now wraps a connected command and a separate artifact plan, captures the live invocation
+through a serializable snapshot-source adapter, and writes validated artifact content through
+host-owned stdout or atomic file sinks. A stdout artifact suppresses the ordinary method result so
+the stream remains one machine-clean document; a file export preserves the ordinary result on
+stdout. Export failures are fatal rather than silently claiming success.
+
+Still to implement in this phase are the Web snapshot-source adapter, Web download action, and
+read-only import/replay stores.
 
 Deliverables:
 
@@ -897,10 +904,11 @@ Documentation changes are deliverables, not cleanup:
 
 ## 18. Recommended next implementation slice
 
-Phase 0 and Phase 1 now validate static discovery, canonical/short command selection,
-no-connection commands, and connected MCP invocation. The next independent slice is Phase 2's
-native artifact contract and one minimal session export; it must not pull in external loading, the
-browser host, or MCP Description mapping prematurely.
+Phase 0, Phase 1, and the CLI half of Phase 2 now validate static discovery, canonical/short
+command selection, connected capture, centralized redaction, and host-owned artifact output. The
+next independent slice is Phase 2's Web snapshot adapter and download action, followed separately
+by read-only replay stores. Neither slice should pull in external loading, the browser extension
+host, or MCP Description mapping prematurely.
 
 Do not combine the child-process host, browser viewer, session schema, and MCP Description exporter
 in one change. Each introduces a different compatibility and security boundary and needs an

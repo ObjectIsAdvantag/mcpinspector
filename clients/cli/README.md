@@ -75,6 +75,19 @@ npx @modelcontextprotocol/inspector --cli --command servers/list --catalog path/
 npx @modelcontextprotocol/inspector --cli --command servers/show --catalog path/to/mcp.json --server myserver
 ```
 
+**Record one connected invocation as a native Inspector session**
+
+```bash
+npx @modelcontextprotocol/inspector --cli node build/index.js --method tools/list \
+  --artifact-plugin inspector-session --output session.json
+```
+
+The native session artifact captures the selected server source, negotiated server metadata,
+discovery data returned by the invocation, protocol/network/stderr events, and the invocation
+outcome. Sensitive values are redacted before serialization. Use `--output -` (or omit
+`--output`) to write only the artifact document to stdout; when a file is selected, the ordinary
+method result remains on stdout and the artifact is written atomically with owner-only permissions.
+
 ### Remote Servers
 
 You can also connect to remote MCP servers using HTTP or SSE transports.
@@ -146,6 +159,9 @@ An explicit `--command mcp/invoke` still requires `--method`; the server command
 | `--connect-timeout <ms>`      | Connection timeout in ms. Defaults to `15000` for ad-hoc `--server-url`/target runs (so a black-holed host fails fast) and to the file-level timeout for `--catalog`/`--config` runs. `0` disables the timeout.                                                                                                                                                                                                      |
 | `--app-info`                  | Probe a tool's MCP App UI metadata without invoking it. With `--method tools/call --tool-name <name>`: prints one JSON line (`hasApp`, `resourceUri`, `csp`, `permissions`, `domain`, …) and exits `0` if the tool has an app or `2` (`no_app`) if not. With `--method tools/list`: emits NDJSON — one app-info line per tool over a single connection.                                                              |
 | `--format <text\|json>`       | Output format. `text` (default) pretty-prints the result. `json` emits a single JSON object on stdout (`{ "result": … }`, plus `{ "appInfo": … }` as a sibling key for App tools) with no banners, so the whole output pipes cleanly into `jq`.                                                                                                                                                                      |
+| `--artifact-plugin <format>`  | Export the connected invocation as an artifact. Accepts `inspector-session` or the canonical `modelcontextprotocol.inspector-session-1` ID. Requires a connected MCP command.                                                                                                                                                                                                                                         |
+| `--encoding <encoding>`       | Artifact encoding. The native session format currently supports `json` only. Requires `--artifact-plugin`.                                                                                                                                                                                                                                                                                                             |
+| `--output <path>`             | Artifact destination. A file path writes atomically; `-` selects stdout. Defaults to stdout when artifact export is enabled.                                                                                                                                                                                                                                                                                           |
 | `--relogin`                   | Delete stored OAuth for this server URL from the shared store before connect; interactive login still only runs if the server requires auth. Requires an HTTP/SSE URL (rejected for stdio). Conflicts with `--stored-auth-only` / `--use-stored-auth` / `--wait-for-auth` / no-connection server commands.                                                                                                        |
 | `--stored-auth-only`          | **CI / non-interactive safe:** never start interactive OAuth / step-up (and never auto-open a browser); use the shared store if present, otherwise fail immediately with `auth_required`. Prefer this over a bare pipe/CI run that would otherwise attempt interactive login.                                                                                                                                        |
 

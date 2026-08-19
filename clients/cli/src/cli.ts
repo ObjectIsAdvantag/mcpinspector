@@ -18,6 +18,11 @@ import {
 import { writeFormattedResult } from "./handlers/format-output.js";
 import { clearStoredAuthForRelogin } from "./clear-stored-auth-for-relogin.js";
 import { InspectorClient } from "@inspector/core/mcp/index.js";
+import {
+  FetchRequestLogState,
+  MessageLogState,
+  StderrLogState,
+} from "@inspector/core/mcp/state/index.js";
 import { cleanRoots } from "@inspector/core/mcp/serverList.js";
 import {
   createTransportNode,
@@ -101,9 +106,16 @@ import {
   type CliServerLoadOptions,
 } from "./extensions/commands/plan.js";
 import { executeCommandPlan } from "./extensions/commands/execute.js";
+import { executeCliArtifactExport } from "./extensions/artifacts/execute.js";
+import {
+  buildCliArtifactPlan,
+  type CliArtifactCommandPlan,
+} from "./extensions/artifacts/plan.js";
+import { createCliSessionSnapshot } from "./extensions/artifacts/snapshot-source.js";
 import type { CliHostPlan } from "./host/plan.js";
+import type { ArtifactPlan } from "@inspector/core/extensions/artifacts/plan.js";
 
-type CliPlan = CliCommandPlan | CliHostPlan;
+type CliPlan = CliCommandPlan | CliArtifactCommandPlan | CliHostPlan;
 
 export const validLogLevels: LoggingLevel[] = Object.values(
   LoggingLevelSchema.enum,
@@ -115,6 +127,7 @@ const CLI_CLIENT_NAME = "inspector-cli";
 export { DEFAULT_CONNECT_TIMEOUT_MS, withConnectTimeout };
 
 async function callMethod(
+  serverName: string | undefined,
   serverConfig: MCPServerConfig,
   serverSettings: InspectorServerSettings | undefined,
   args: MethodArgs & { method: string },
@@ -123,6 +136,7 @@ async function callMethod(
   callbackUrlConfig: RunnerOAuthCallbackConfig,
   storedAuthOnly: boolean,
   relogin: boolean,
+  artifactPlan?: ArtifactPlan,
 ): Promise<void> {
   // Clear after parse-time validation so a bad flag combo never deletes store
   // entries. Deletes the shared URL-keyed OAuth entry (not "ignore for this run").
@@ -192,6 +206,9 @@ async function callMethod(
     }),
     ...clientAuthOptions,
   });
+  const messageLog = new MessageLogState(inspectorClient);
+  const fetchRequestLog = new FetchRequestLogState(inspectorClient);
+  const stderrLog = new StderrLogState(inspectorClient);
 
   try {
     await connectInspectorWithOAuth(
@@ -213,9 +230,35 @@ async function callMethod(
       { storedAuthOnly, autoOpenControl },
     );
 
-    await consumeMethodOutcome(outcome, args);
+    if (artifactPlan !== undefined) {
+      if (artifactPlan.output.kind === "file") {
+        await consumeMethodOutcome(outcome, args);
+      }
+      const snapshot = createCliSessionSnapshot({
+        inspectorVersion: clientIdentity.version,
+        sessionId: crypto.randomUUID(),
+        serverName,
+        serverConfig,
+        serverSettings,
+        client: inspectorClient,
+        methodArgs: args,
+        outcome,
+        messages: messageLog,
+        network: fetchRequestLog,
+        stderr: stderrLog,
+      });
+      await executeCliArtifactExport(artifactPlan, snapshot);
+    } else {
+      await consumeMethodOutcome(outcome, args);
+    }
   } finally {
-    await inspectorClient.disconnect();
+    try {
+      await inspectorClient.disconnect();
+    } finally {
+      messageLog.destroy();
+      fetchRequestLog.destroy();
+      stderrLog.destroy();
+    }
   }
 }
 
@@ -674,6 +717,18 @@ export function createCliPlan(argv?: string[]): CliPlan {
       },
     )
     .option(
+      "--artifact-plugin <format>",
+      "Export the connected invocation as an artifact (inspector-session or canonical format id).",
+    )
+    .option(
+      "--encoding <encoding>",
+      "Artifact encoding (defaults to the selected format's first encoding).",
+    )
+    .option(
+      "--output <path>",
+      "Artifact output file, or '-' for stdout (default: stdout).",
+    )
+    .option(
       "--tool-args-json <json>",
       'Tool arguments as a single JSON object (e.g. \'{"zip":"10001"}\'). Values are passed verbatim — no key=value coercion. Mutually exclusive with --tool-arg.',
     )
@@ -755,6 +810,9 @@ export function createCliPlan(argv?: string[]): CliPlan {
     appInfo?: boolean;
     connectTimeout?: number;
     format?: OutputFormat;
+    artifactPlugin?: string;
+    encoding?: string;
+    output?: string;
     toolArgsJson?: string;
     clientConfig?: string;
     clientId?: string;
@@ -857,6 +915,15 @@ export function createCliPlan(argv?: string[]): CliPlan {
         `Unsupported method: ${options.method}. Supported --cli methods: ${ONE_SHOT_METHODS.join(", ")}, servers/list, servers/show.`,
       );
     }
+  }
+
+  if (options.artifactPlugin && contribution.connection !== "connected") {
+    throw new Error(
+      "--artifact-plugin requires a connected MCP invocation command.",
+    );
+  }
+  if (!options.artifactPlugin && (options.encoding || options.output)) {
+    throw new Error("--encoding and --output require --artifact-plugin.");
   }
 
   if (options.relogin && contribution.connection !== "connected") {
@@ -1018,7 +1085,7 @@ export function createCliPlan(argv?: string[]): CliPlan {
     format,
   };
 
-  return {
+  const connectedPlan: CliConnectedCommandPlan = {
     ...commandPlan,
     connection: contribution.connection,
     serverSelection: contribution.serverSelection,
@@ -1038,6 +1105,16 @@ export function createCliPlan(argv?: string[]): CliPlan {
     callbackUrl: options.callbackUrl,
     storedAuthOnly: options.storedAuthOnly === true,
     relogin: options.relogin === true,
+  };
+  if (!options.artifactPlugin) return connectedPlan;
+  return {
+    kind: "artifact-command",
+    command: connectedPlan,
+    artifact: buildCliArtifactPlan(
+      options.artifactPlugin,
+      options.encoding,
+      options.output,
+    ),
   };
 }
 
@@ -1144,6 +1221,7 @@ async function withStoredAuth(
 
 async function runConnectedCommand(
   plan: CliConnectedCommandPlan,
+  artifactPlan?: ArtifactPlan,
 ): Promise<void> {
   if (plan.commandId !== MCP_INVOKE_COMMAND_ID) {
     throw new Error(`No provider registered for command: ${plan.commandId}`);
@@ -1175,6 +1253,7 @@ async function runConnectedCommand(
     );
   }
   await callMethod(
+    plan.serverName,
     selected.config,
     serverSettings,
     plan.methodArgs,
@@ -1187,6 +1266,7 @@ async function runConnectedCommand(
     callbackUrlConfig,
     plan.storedAuthOnly,
     plan.relogin,
+    artifactPlan,
   );
 }
 
@@ -1194,6 +1274,10 @@ export async function runCli(argv?: string[]): Promise<void> {
   const plan = createCliPlan(argv ?? process.argv);
   if (plan.kind === "host") {
     await runHostPlan(plan);
+    return;
+  }
+  if (plan.kind === "artifact-command") {
+    await runConnectedCommand(plan.command, plan.artifact);
     return;
   }
   await executeCommandPlan(plan, {
