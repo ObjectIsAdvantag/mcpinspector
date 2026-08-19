@@ -68,6 +68,15 @@ Two grab-bag directories, split by one rule: **`utils` = functions that compute;
 
 The top-level `src/types/` is a separate sibling — ambient `.d.ts` module stubs, not the place for new domain types (the one that lingers there, dead `navigation.ts`, is tracked for removal in [#1785](https://github.com/modelcontextprotocol/inspector/issues/1785)).
 
+### Native session export
+
+While connected, use the **Export session** action in the header to download a native Inspector
+session JSON artifact. It captures the active server configuration and negotiated metadata,
+discovered primitives, protocol/network/console events, tasks, and subscriptions. Sensitive values
+are redacted before serialization. Repeated exports from the same live connection share a session
+ID and receive distinct capture timestamps; the browser writes the validated artifact as an
+`inspector-session-<server>-<timestamp>.json` download.
+
 Nothing _enforces_ the boundary — no path alias keys off it, and the coverage `include` in `vite.config.ts` lists both directories, so a move between them is coverage-neutral. It's a human-legible import-time signal. See [`AGENTS.md`](../../AGENTS.md) for the full rule (including the whitelist caveat — a module placed outside `components`/`lib`/`utils`/`server` falls out of the ≥90 gate).
 
 ## MCP Apps screen automation contract

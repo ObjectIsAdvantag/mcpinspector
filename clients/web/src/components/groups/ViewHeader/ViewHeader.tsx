@@ -14,7 +14,12 @@ import {
   type MantineTransition,
 } from "@mantine/core";
 import type { Implementation } from "@modelcontextprotocol/client";
-import { MdLightMode, MdDarkMode, MdSettings } from "react-icons/md";
+import {
+  MdDownload,
+  MdLightMode,
+  MdDarkMode,
+  MdSettings,
+} from "react-icons/md";
 import { VscDebugDisconnect } from "react-icons/vsc";
 import type { ConnectionStatus } from "@inspector/core/mcp/types.js";
 import { ServerStatusIndicator } from "../../elements/ServerStatusIndicator/ServerStatusIndicator";
@@ -37,6 +42,7 @@ interface ConnectedProps {
   activeTab: string;
   availableTabs: string[];
   onTabChange: (tab: string) => void;
+  onExportSession: () => void;
   onDisconnect: () => void;
   onToggleTheme: () => void;
   onOpenClientSettings: () => void;
@@ -192,6 +198,12 @@ const DisconnectIcon = ActionIcon.withProps({
   "aria-label": "Disconnect from server",
 });
 
+const ExportSessionIcon = ActionIcon.withProps({
+  variant: "subtle",
+  size: 36,
+  "aria-label": "Export session",
+});
+
 const ClientSettingsToggle = ActionIcon.withProps({
   variant: "subtle",
   size: 36,
@@ -268,6 +280,9 @@ export function ViewHeader(props: ViewHeaderProps) {
   }
   const headerData = props.connected ? liveSnapshot : snapshot;
   const handleTabChange = props.connected ? props.onTabChange : undefined;
+  const handleExportSession = props.connected
+    ? props.onExportSession
+    : undefined;
   const handleDisconnect = props.connected ? props.onDisconnect : undefined;
 
   // The glow only arms once the connection has settled (GLOW_GRACE_MS after
@@ -403,6 +418,11 @@ export function ViewHeader(props: ViewHeaderProps) {
                   status={headerData.status}
                   latencyMs={headerData.latencyMs}
                 />
+                <Tooltip label="Export session">
+                  <ExportSessionIcon onClick={handleExportSession}>
+                    <MdDownload size={20} />
+                  </ExportSessionIcon>
+                </Tooltip>
                 <Tooltip label="Disconnect from server">
                   <DisconnectIcon onClick={handleDisconnect}>
                     <VscDebugDisconnect size={20} />

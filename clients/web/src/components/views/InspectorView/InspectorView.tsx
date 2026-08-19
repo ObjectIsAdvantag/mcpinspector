@@ -510,6 +510,8 @@ export interface InspectorViewProps {
 
   // Connection lifecycle (dispatched to `useInspectorClient.connect/disconnect`).
   onToggleConnection: (id: string) => void;
+  /** Download a native snapshot of the active live connection. */
+  onExportSession: () => void;
   onDisconnect: () => void;
 
   // Server list actions.
@@ -677,6 +679,7 @@ export function InspectorView({
   onToggleTheme,
   onOpenClientSettings,
   onToggleConnection,
+  onExportSession,
   onDisconnect,
   onServerAdd,
   onServerImportConfig,
@@ -1327,6 +1330,7 @@ export function InspectorView({
             activeTab={activeTab}
             availableTabs={headerTabs}
             onTabChange={onActiveTabChange}
+            onExportSession={onExportSession}
             onDisconnect={onDisconnect}
             onToggleTheme={onToggleTheme}
             onOpenClientSettings={onOpenClientSettings}

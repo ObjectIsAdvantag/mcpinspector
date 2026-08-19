@@ -39,6 +39,7 @@ const connectedProps = {
   activeTab: "Tools",
   availableTabs: ["Tools", "Resources", "Prompts"],
   onTabChange: vi.fn(),
+  onExportSession: vi.fn(),
   onDisconnect: vi.fn(),
   onToggleTheme: vi.fn(),
   onOpenClientSettings: vi.fn(),
@@ -195,6 +196,16 @@ describe("ViewHeader", () => {
       });
       await user.click(disconnectButton);
       expect(onDisconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it("invokes onExportSession when the export control is clicked", async () => {
+      const user = userEvent.setup();
+      const onExportSession = vi.fn();
+      renderWithMantine(
+        <ViewHeader {...connectedProps} onExportSession={onExportSession} />,
+      );
+      await user.click(screen.getByRole("button", { name: "Export session" }));
+      expect(onExportSession).toHaveBeenCalledTimes(1);
     });
 
     it("renders all available tabs", () => {
