@@ -161,6 +161,8 @@ import {
   type PendingClientRequestContent,
 } from "./components/groups/PendingClientRequestModal/PendingClientRequestModal";
 import { buildExportFilename, downloadJsonFile } from "./lib/downloadFile";
+import { exportWebSessionArtifact } from "./lib/exportSessionArtifact";
+import { createWebSessionSnapshot } from "./utils/sessionSnapshot";
 import { INSPECTOR_SERVERS_TAB } from "./utils/inspectorTabs";
 import { enrichProtocolEntries } from "./utils/correlateTransportErrors";
 import {
@@ -941,6 +943,9 @@ function App() {
   // intervening rerenders don't reset it.
   const connectStartRef = useRef<number | undefined>(undefined);
   const [latencyMs, setLatencyMs] = useState<number | undefined>(undefined);
+  // Created with each InspectorClient and retained across exports from that
+  // connection, so multiple snapshots can be correlated as one live session.
+  const artifactSessionIdRef = useRef<string | undefined>(undefined);
 
   // One-shot guard for the `/oauth/callback` handler below. The effect waits
   // for the async `servers` list to hydrate, so it can run on more than one
@@ -2281,6 +2286,8 @@ function App() {
       messageLogState?.destroy();
       fetchRequestLogState?.destroy();
       stderrLogState?.destroy();
+
+      artifactSessionIdRef.current = sessionId ?? crypto.randomUUID();
 
       const { environment, logger } = createWebEnvironment(
         getAuthToken(),
@@ -3808,6 +3815,71 @@ function App() {
     downloadJsonFile("mcp.json", serializeMcpConfig(servers));
   }, [servers]);
 
+  const onExportSession = useCallback(() => {
+    void (async () => {
+      const server = servers.find(({ id }) => id === activeServerId);
+      const sessionId = artifactSessionIdRef.current;
+      if (!server || !sessionId || !inspectorVersion) {
+        throw new Error(
+          "The active connection is not ready for session export",
+        );
+      }
+
+      const snapshot = createWebSessionSnapshot({
+        inspectorVersion,
+        sessionId,
+        server,
+        protocolVersion,
+        protocolEra,
+        serverInfo,
+        serverCapabilities: capabilities,
+        clientCapabilities,
+        instructions,
+        tools,
+        resources,
+        resourceTemplates,
+        prompts,
+        protocol: protocolEntries,
+        network: fetchRequests,
+        stderr: stderrLogs,
+        console: logs,
+        tasks,
+        subscriptions,
+      });
+      const artifact = await exportWebSessionArtifact(snapshot);
+      downloadJsonFile(
+        buildExportFilename("session", activeServerId),
+        artifact.content,
+      );
+    })().catch((error: unknown) => {
+      notifications.show({
+        title: "Session export failed",
+        message: error instanceof Error ? error.message : String(error),
+        color: "red",
+      });
+    });
+  }, [
+    servers,
+    activeServerId,
+    inspectorVersion,
+    protocolVersion,
+    protocolEra,
+    serverInfo,
+    capabilities,
+    clientCapabilities,
+    instructions,
+    tools,
+    resources,
+    resourceTemplates,
+    prompts,
+    protocolEntries,
+    fetchRequests,
+    stderrLogs,
+    logs,
+    tasks,
+    subscriptions,
+  ]);
+
   // Remove handler — runs after the user confirms in the modal. When removing
   // the active server, also tear down the session in-place so the client and
   // its 9 state managers can be GC'd now instead of lingering until the next
@@ -4417,6 +4489,7 @@ function App() {
           onToggleConnection={(id) => {
             void onToggleConnection(id);
           }}
+          onExportSession={onExportSession}
           onDisconnect={() => {
             void onDisconnect();
           }}

@@ -373,6 +373,7 @@ const meta: Meta<typeof InspectorView> = {
     onToggleTheme: fn(),
     onOpenClientSettings: fn(),
     onToggleConnection: fn(),
+    onExportSession: fn(),
     onDisconnect: fn(),
     onServerAdd: fn(),
     onServerImportConfig: fn(),

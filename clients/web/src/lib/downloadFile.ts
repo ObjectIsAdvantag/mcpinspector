@@ -75,6 +75,7 @@ export function isHttpUrl(url: string): URL | null {
  * stable on-disk filename prefix.
  */
 export type ExportKind =
+  | "session"
   | "protocol"
   | "protocol-pinned"
   | "protocol-unpinned"

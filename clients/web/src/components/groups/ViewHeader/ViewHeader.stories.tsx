@@ -36,6 +36,7 @@ export const Connected: Story = {
       "Protocol",
     ],
     onTabChange: fn(),
+    onExportSession: fn(),
     onDisconnect: fn(),
     onToggleTheme: fn(),
     onOpenClientSettings: fn(),

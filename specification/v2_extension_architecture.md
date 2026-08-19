@@ -5,7 +5,8 @@
 - **Purpose:** design and implementation plan for an experimental fork
 - **Maturity:** candidate architecture; public extension compatibility is not promised
 - **Implemented:** Phase 0 contracts/static discovery, Phase 1 built-in command registry and CLI
-  command lifecycle, and the Phase 2 artifact/native-session foundation plus CLI capture/export
+  command lifecycle, and the Phase 2 artifact/native-session foundation plus CLI and Web
+  capture/export
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -713,7 +714,7 @@ Exit criteria:
 
 ### Phase 2 — Artifact service and native session format
 
-**Status: foundation and CLI capture/export implemented.** The static catalog now advertises
+**Status: foundation plus CLI and Web capture/export implemented.** The static catalog now advertises
 `modelcontextprotocol.inspector-session-1` for JSON export and validation. Shared code provides
 artifact plan/format-handler/output contracts, a v1 native schema, a bounded untrusted parser, a
 snapshot builder, and centralized recursive redaction. The builder accepts only serializable DTOs
@@ -730,8 +731,12 @@ host-owned stdout or atomic file output. A stdout artifact suppresses the ordina
 the stream remains one machine-clean document; a file export preserves the ordinary result on
 stdout. Export failures are fatal rather than silently claiming success.
 
-Still to implement in this phase are the Web snapshot-source adapter, Web download action, and
-read-only import/replay stores.
+The Web client captures the active connection through its own serializable snapshot adapter and
+offers an Export Session action in the connected-server header. Repeated exports from one live
+connection share a session ID, while each download receives a fresh capture timestamp. The native
+format handler still owns export and validation; browser file access remains host-owned.
+
+Still to implement in this phase are read-only import/replay stores.
 
 Deliverables:
 
@@ -906,11 +911,11 @@ Documentation changes are deliverables, not cleanup:
 
 ## 18. Recommended next implementation slice
 
-Phase 0, Phase 1, and the CLI half of Phase 2 now validate static discovery, canonical/short
-command selection, connected capture, centralized redaction, and host-owned artifact output. The
-next independent slice is Phase 2's Web snapshot adapter and download action, followed separately
-by read-only replay stores. Neither slice should pull in external loading, the browser extension
-host, or MCP Description mapping prematurely.
+Phase 0, Phase 1, and the capture/export portion of Phase 2 now validate static discovery,
+canonical/short command selection, connected capture in CLI and Web, centralized redaction, and
+host-owned artifact output. The next independent slice is Phase 2's read-only import/replay stores.
+It should not pull in external loading, the browser extension host, or MCP Description mapping
+prematurely.
 
 Do not combine the child-process host, browser viewer, session schema, and MCP Description exporter
 in one change. Each introduces a different compatibility and security boundary and needs an
