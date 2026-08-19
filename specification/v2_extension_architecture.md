@@ -4,8 +4,8 @@
 
 - **Purpose:** design and implementation plan for an experimental fork
 - **Maturity:** candidate architecture; public extension compatibility is not promised
-- **Implemented:** Phase 0 contracts/static discovery and Phase 1 built-in command registry plus
-  CLI command planning and execution
+- **Implemented:** Phase 0 contracts/static discovery, Phase 1 built-in command registry and CLI
+  command lifecycle, and the Phase 2 artifact/native-session foundation
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -603,7 +603,7 @@ core/extensions/
 │   ├── commands.ts
 │   ├── diagnostics.ts
 │   ├── json.ts
-│   └── sessions.ts                 # Phase 2
+│   └── sessions.ts                 # native v1 schema, bounded parser, serializer
 ├── commands/
 │   └── plan.ts                     # shared command-plan DTO
 ├── manifest/
@@ -614,16 +614,17 @@ core/extensions/
 │   ├── contributionRegistry.ts
 │   └── activationRegistry.ts       # Later activation phase
 ├── artifacts/
-│   ├── plan.ts                     # Phase 2 artifact plan DTO
-│   ├── execute.ts                  # Phase 2 artifact service
-│   ├── sessionArtifact.ts          # Phase 2
+│   ├── plan.ts                     # shared artifact-plan DTO
+│   ├── service.ts                  # provider registry + host-owned output dispatch
 │   └── serverDescriptionSnapshot.ts # Phase 3
 ├── builtin/
 │   ├── manifests.ts
 │   ├── catalog.ts
 │   ├── servers/
 │   │   └── catalog.ts              # Phase 1 Node catalog providers/redaction
-│   ├── inspector-session/          # Phase 2
+│   ├── inspector-session/
+│   │   ├── snapshot.ts             # shared builder + redaction policy
+│   │   └── provider.ts             # native JSON export/validation provider
 │   └── mcpdesc-0.7/                # Phase 3
 └── node/
   ├── extensionHost.ts            # Phase 4
@@ -708,6 +709,21 @@ Exit criteria:
 - existing CLI tests remain green.
 
 ### Phase 2 — Artifact service and native session format
+
+**Status: foundation implemented.** The static catalog now advertises
+`modelcontextprotocol.inspector-session-1` for JSON export and validation. Shared code provides
+artifact plan/provider/output-sink contracts, a v1 native schema, a bounded untrusted parser, a
+snapshot builder, and centralized recursive redaction. The builder accepts only serializable DTOs
+from surface-specific adapters; it does not reach into clients, stores, React, or transports.
+
+The parser rejects malformed JSON, artifacts above the host limit, other format IDs, and unsupported
+versions before replay. Same-version unknown JSON fields survive parse/serialize round trips. The
+native provider never writes directly to stdout or the filesystem: validated payloads flow through
+a host-owned output sink.
+
+Still to implement in this phase are the CLI/Web snapshot-source adapters, CLI artifact routing,
+Web download action, and read-only import/replay stores. Until those adapters exist, the registered
+provider is an internal built-in contract and no new user-facing export flag is claimed.
 
 Deliverables:
 

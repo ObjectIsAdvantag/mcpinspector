@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createBuiltinContributionCatalog } from "@inspector/core/extensions/builtin/catalog.js";
 import {
   createStaticContributionCatalog,
+  resolveArtifactContribution,
   resolveCommandContribution,
 } from "@inspector/core/extensions/registry/contributionRegistry.js";
+import { INSPECTOR_SESSION_FORMAT_ID } from "@inspector/core/extensions/api/sessions.js";
 import {
   INCOMPATIBLE_MANIFEST,
   INVALID_MANIFEST,
@@ -175,7 +177,7 @@ describe("createStaticContributionCatalog", () => {
     );
   });
 
-  it("registers MCP invocation and server commands without planned artifacts", () => {
+  it("registers built-in commands and the native session artifact", () => {
     const catalog = createBuiltinContributionCatalog(HOST);
     expect(catalog.diagnostics).toEqual([]);
     expect(catalog.commands.map(({ contribution }) => contribution.id)).toEqual(
@@ -191,6 +193,20 @@ describe("createStaticContributionCatalog", () => {
     expect(
       resolveCommandContribution(catalog, "servers/list")?.contribution.id,
     ).toBe("modelcontextprotocol.servers.list");
-    expect(catalog.artifactFormats).toEqual([]);
+    expect(catalog.artifactFormats).toEqual([
+      expect.objectContaining({
+        extensionId: "modelcontextprotocol.inspector-session",
+        contribution: expect.objectContaining({
+          id: INSPECTOR_SESSION_FORMAT_ID,
+          operations: ["export", "validate"],
+        }),
+      }),
+    ]);
+    expect(
+      resolveArtifactContribution(catalog, INSPECTOR_SESSION_FORMAT_ID),
+    ).toBe(catalog.artifactFormats[0]);
+    expect(resolveArtifactContribution(catalog, "example.missing")).toBe(
+      undefined,
+    );
   });
 });
