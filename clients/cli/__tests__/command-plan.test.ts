@@ -5,6 +5,7 @@ import {
   buildCommandPlan,
   describeOutput,
   describeServerSource,
+  type CliCommandPlan,
 } from "../src/extensions/commands/plan.js";
 import {
   CLI_BUILTIN_CONTRIBUTION_CATALOG,
@@ -18,6 +19,7 @@ import {
 } from "../src/extensions/commands/execute.js";
 import { runCli } from "./helpers/cli-runner.js";
 import { expectCliSuccess } from "./helpers/assertions.js";
+import { INSPECTOR_SESSION_FORMAT_ID } from "@inspector/core/extensions/api/sessions.js";
 
 const argv = (...args: string[]): string[] => [
   "node",
@@ -25,8 +27,10 @@ const argv = (...args: string[]): string[] => [
   ...args,
 ];
 
-function expectCommandPlan(plan: ReturnType<typeof createCliPlan>) {
-  if (plan.kind === "host") {
+function expectCommandPlan(
+  plan: ReturnType<typeof createCliPlan>,
+): CliCommandPlan {
+  if (plan.kind === "host" || plan.kind === "artifact-command") {
     throw new Error("Expected a command plan");
   }
   return plan;
@@ -117,6 +121,78 @@ describe("CLI command plan creation", () => {
       connection: "connected",
       methodArgs: { method: "resources/list" },
     });
+  });
+
+  it("wraps a connected command and a separately planned artifact export", () => {
+    expect(
+      createCliPlan(
+        argv(
+          "fake-server",
+          "--method",
+          "tools/list",
+          "--artifact-plugin",
+          "inspector-session",
+          "--output",
+          "session.json",
+        ),
+      ),
+    ).toMatchObject({
+      kind: "artifact-command",
+      command: {
+        kind: "command",
+        connection: "connected",
+        methodArgs: { method: "tools/list" },
+      },
+      artifact: {
+        kind: "artifact",
+        formatId: INSPECTOR_SESSION_FORMAT_ID,
+        operation: "export",
+        encoding: "json",
+        output: { kind: "file", path: "session.json" },
+      },
+    });
+  });
+
+  it("validates artifact selectors, encoding, and command requirements", () => {
+    expect(() =>
+      createCliPlan(
+        argv(
+          "fake-server",
+          "--method",
+          "tools/list",
+          "--artifact-plugin",
+          "missing",
+        ),
+      ),
+    ).toThrow(/Unknown artifact format/);
+    expect(() =>
+      createCliPlan(
+        argv(
+          "fake-server",
+          "--method",
+          "tools/list",
+          "--artifact-plugin",
+          "inspector-session",
+          "--encoding",
+          "yaml",
+        ),
+      ),
+    ).toThrow(/does not support encoding yaml/);
+    expect(() =>
+      createCliPlan(
+        argv(
+          "--command",
+          "servers/list",
+          "--artifact-plugin",
+          "inspector-session",
+        ),
+      ),
+    ).toThrow(/requires a connected MCP invocation/);
+    expect(() =>
+      createCliPlan(
+        argv("fake-server", "--method", "tools/list", "--output", "x.json"),
+      ),
+    ).toThrow(/require --artifact-plugin/);
   });
 
   it("represents stored-auth utilities as host plans and preserves precedence", () => {

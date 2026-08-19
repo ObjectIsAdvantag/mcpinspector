@@ -29,6 +29,13 @@ function snapshotInput(): ExtensionJsonObject {
           Authorization: `Bearer ${SECRET}`,
           "X-Trace": "visible",
         },
+        env: {
+          PUBLIC_NAME: SECRET,
+          OPENAI_API_KEY: SECRET,
+        },
+        settings: {
+          env: [{ key: "ARBITRARY_NAME", value: SECRET }],
+        },
         metadata: [
           { key: "x-api-key", value: SECRET },
           { key: "safe", value: "visible-metadata" },
@@ -124,6 +131,12 @@ describe("buildNativeSessionArtifact", () => {
         }),
         expect.objectContaining({
           path: ["events", "network", 0, "requestBody", "refresh_token"],
+        }),
+        expect.objectContaining({
+          path: ["server", "source", "env", "PUBLIC_NAME"],
+        }),
+        expect.objectContaining({
+          path: ["server", "source", "settings", "env", 0, "value"],
         }),
       ]),
     );

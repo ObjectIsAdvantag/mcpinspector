@@ -103,6 +103,9 @@ function isSensitiveKey(key: string): boolean {
   const normalized = normalizeKey(key);
   return (
     SENSITIVE_KEYS.has(normalized) ||
+    normalized.endsWith("apikey") ||
+    normalized.endsWith("authorization") ||
+    normalized.endsWith("cookie") ||
     normalized.endsWith("password") ||
     normalized.endsWith("secret") ||
     normalized.endsWith("token")
@@ -203,6 +206,14 @@ function redactObject(
       : typeof value.name === "string"
         ? value.name
         : undefined;
+  const parentSegment = path.at(-1);
+  const grandparentSegment = path.at(-2);
+  const environmentRecord =
+    typeof parentSegment === "string" && normalizeKey(parentSegment) === "env";
+  const environmentPair =
+    typeof parentSegment === "number" &&
+    typeof grandparentSegment === "string" &&
+    normalizeKey(grandparentSegment) === "env";
   for (const [key, child] of Object.entries(value)) {
     const childPath = [...path, key];
     const namedSensitiveValue =
@@ -212,7 +223,9 @@ function redactObject(
     const directSensitiveValue =
       isSensitiveKey(key) &&
       (normalizeKey(key) !== "code" || typeof child === "string");
-    if (directSensitiveValue || namedSensitiveValue) {
+    const environmentValue =
+      environmentRecord || (environmentPair && normalizeKey(key) === "value");
+    if (directSensitiveValue || namedSensitiveValue || environmentValue) {
       result[key] = SESSION_REDACTED_VALUE;
       diagnostics.push(redactionDiagnostic(childPath));
     } else if (typeof child === "string") {

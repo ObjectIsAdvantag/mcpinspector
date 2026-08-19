@@ -37,8 +37,9 @@ v2/main/
 │   │   │                               #     `vite build` on a browser-externalized Node built-in — #1769)
 │   │   └── static/                     # sandbox_proxy.html (served by sandbox-controller for MCP Apps tab)
 │   ├── cli/                            # CLI client (tsup bundle, @inspector/core alias;
-│   │                                   #   registry bootstrap plus command plan/execute lifecycle
-│   │                                   #   in src/extensions/, host-only plans in src/host/)
+│   │                                   #   registry bootstrap plus command/artifact plan/execute
+│   │                                   #   lifecycle and session snapshot/sinks in src/extensions/,
+│   │                                   #   host-only plans in src/host/)
 │   ├── tui/                            # TUI client (Ink + React, tsup bundle)
 │   ├── launcher/                       # Shared launcher (relative imports into sibling build/ outputs)
 ├── core/                               # Shared core code (no package.json — consumed via the `@inspector/core` vite alias)
