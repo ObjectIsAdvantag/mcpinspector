@@ -82,6 +82,16 @@ export function resolveCommandContribution(
   );
 }
 
+/** Resolve an immutable artifact format contribution id. */
+export function resolveArtifactContribution(
+  catalog: StaticContributionCatalog,
+  formatId: string,
+): RegisteredContribution<ArtifactFormatContribution> | undefined {
+  return catalog.artifactFormats.find(
+    ({ contribution }) => contribution.id === formatId,
+  );
+}
+
 /**
  * Build an immutable-by-convention catalog from static manifest data. This
  * function validates metadata only and never imports an extension entrypoint.

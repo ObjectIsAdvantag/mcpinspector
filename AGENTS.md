@@ -63,8 +63,9 @@ v2/main/
 │   │                                   #   clients/web/src/test/core/client/.
 │   ├── extensions/                     # Extension contracts: manifest validation,
 │   │                                   #   compatibility diagnostics, contribution catalogs,
-│   │                                   #   built-in metadata, command-plan DTOs, plus the
-│   │                                   #   Node-only built-in server catalog/redaction provider.
+│   │                                   #   built-in metadata, command/artifact plan DTOs, the
+│   │                                   #   native-session schema/provider/redaction builder, plus
+│   │                                   #   the Node-only built-in server catalog provider.
 │   │                                   #   Tests in clients/web/src/test/core/extensions/.
 │   ├── json/                           # JSON utilities and parameter/argument conversion
 │   │                                   #   (xMcpHeader.ts: SEP-2243 `x-mcp-header`
