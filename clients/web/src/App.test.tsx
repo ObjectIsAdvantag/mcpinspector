@@ -383,6 +383,7 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
     onActiveTabChange: (tab: string) => void;
     onConnectionInfo: () => void;
     onToggleConnection: (id: string) => void;
+    onOpenSession: (file: File | null) => void;
     onToolsUiChange: (next: {
       selectedToolKey?: string;
       formValues: Record<string, unknown>;
@@ -425,7 +426,7 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
       onLoadMore: () => void;
     };
   }) => (
-    <div>
+    <div data-testid="inspector-view-double">
       <span data-testid="tool-status">
         {props.toolCallState?.status ?? "none"}
       </span>
@@ -460,6 +461,13 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
         switch-servers-tab
       </button>
       <button onClick={() => props.onToggleConnection("A")}>connect</button>
+      <input
+        data-testid="open-session-file"
+        type="file"
+        onChange={(event) =>
+          props.onOpenSession(event.currentTarget.files?.[0] ?? null)
+        }
+      />
       <button onClick={() => props.onConnectionInfo()}>
         open-connection-info
       </button>
@@ -567,6 +575,23 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
   ),
 }));
 
+vi.mock("./components/views/SessionReplayView/SessionReplayView", () => ({
+  SessionReplayView: (props: {
+    session: {
+      metadata: { sessionId: string; serverName: string };
+    };
+    onClose: () => void;
+    onToggleTheme: () => void;
+  }) => (
+    <div data-testid="session-replay-double">
+      <span>{props.session.metadata.sessionId}</span>
+      <span>{props.session.metadata.serverName}</span>
+      <button onClick={props.onToggleTheme}>toggle-replay-theme</button>
+      <button onClick={props.onClose}>close-session-replay</button>
+    </div>
+  ),
+}));
+
 import App from "./App";
 import { SERVER_INFO_NOT_REPORTED_LABEL } from "./components/groups/ConnectionInfoContent/ConnectionInfoContent";
 import { OAUTH_CALLBACK_PATH } from "./utils/oauthFlow.js";
@@ -606,6 +631,48 @@ const DEFAULT_USE_INSPECTOR_CLIENT: ReturnType<typeof useInspectorClient> = {
   disconnect: vi.fn().mockResolvedValue(undefined),
 };
 
+const DISCONNECTED_USE_INSPECTOR_CLIENT: ReturnType<typeof useInspectorClient> =
+  {
+    ...DEFAULT_USE_INSPECTOR_CLIENT,
+    status: "disconnected",
+  };
+
+function nativeSessionFile(content?: string): File {
+  const artifact = {
+    header: {
+      format: {
+        id: "modelcontextprotocol.inspector-session-1",
+        version: "1.0.0",
+      },
+      inspectorVersion: "2.2.0",
+      capturedAt: "2026-08-19T10:15:00.000Z",
+      sessionId: "app-replay-session",
+    },
+    server: { implementation: { name: "Replay Server" } },
+    discovery: {
+      tools: [],
+      resources: [],
+      resourceTemplates: [],
+      prompts: [],
+      diagnostics: [],
+    },
+    events: {
+      protocol: [],
+      network: [],
+      stderr: [],
+      console: [],
+      tasks: [],
+      subscriptions: [],
+      auth: [],
+    },
+    attachments: [],
+    diagnostics: [],
+  };
+  return new File([content ?? JSON.stringify(artifact)], "session.json", {
+    type: "application/json",
+  });
+}
+
 const clientInstances = (
   McpIndex as unknown as { __clientInstances: EventTarget[] }
 ).__clientInstances;
@@ -623,6 +690,142 @@ const rejectNextResumeAfterOAuth = (
 const fetchLogInstances = (
   FetchLogModule as unknown as { __fetchLogInstances: EventTarget[] }
 ).__fetchLogInstances;
+
+describe("App native session replay", () => {
+  beforeEach(() => {
+    clientInstances.length = 0;
+    notificationsMock.show.mockClear();
+    vi.mocked(useInspectorClient).mockReturnValue(
+      DISCONNECTED_USE_INSPECTOR_CLIENT,
+    );
+  });
+
+  afterEach(() => {
+    vi.mocked(useInspectorClient).mockReturnValue(DEFAULT_USE_INSPECTOR_CLIENT);
+  });
+
+  it("opens a valid local artifact in an isolated full-screen replay", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(<App />);
+
+    await user.upload(
+      screen.getByTestId("open-session-file"),
+      nativeSessionFile(),
+    );
+
+    expect(await screen.findByTestId("session-replay-double")).toBeVisible();
+    expect(
+      screen.queryByTestId("inspector-view-double"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("app-replay-session")).toBeVisible();
+    expect(screen.getByText("Replay Server")).toBeVisible();
+    expect(clientInstances).toHaveLength(0);
+
+    await user.click(screen.getByText("close-session-replay"));
+    expect(await screen.findByTestId("inspector-view-double")).toBeVisible();
+    expect(
+      screen.queryByTestId("session-replay-double"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the live composition open when artifact validation fails", async () => {
+    const user = userEvent.setup();
+    renderWithMantine(<App />);
+
+    await user.upload(
+      screen.getByTestId("open-session-file"),
+      nativeSessionFile("{"),
+    );
+
+    await waitFor(() =>
+      expect(notificationsMock.show).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Session could not be opened",
+          message: "Session artifact is not valid JSON",
+          color: "red",
+        }),
+      ),
+    );
+    expect(screen.getByTestId("inspector-view-double")).toBeVisible();
+    expect(
+      screen.queryByTestId("session-replay-double"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("refuses programmatic session selection while connected", async () => {
+    vi.mocked(useInspectorClient).mockReturnValue(DEFAULT_USE_INSPECTOR_CLIENT);
+    const user = userEvent.setup();
+    const file = nativeSessionFile();
+    const readFile = vi.spyOn(file, "text");
+    renderWithMantine(<App />);
+
+    await user.upload(screen.getByTestId("open-session-file"), file);
+
+    expect(readFile).not.toHaveBeenCalled();
+    expect(notificationsMock.show).toHaveBeenCalledWith({
+      title: "Disconnect first",
+      message: "Disconnect the live server before opening a session.",
+      color: "yellow",
+    });
+    expect(
+      screen.queryByTestId("session-replay-double"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not enter replay if a connection starts while the file is loading", async () => {
+    const user = userEvent.setup();
+    let resolveContent: (content: string) => void = () => {};
+    const contentPromise = new Promise<string>((resolve) => {
+      resolveContent = resolve;
+    });
+    const file = nativeSessionFile();
+    vi.spyOn(file, "text").mockReturnValue(contentPromise);
+    const { rerender } = renderWithMantine(<App />);
+
+    await user.upload(screen.getByTestId("open-session-file"), file);
+    vi.mocked(useInspectorClient).mockReturnValue(DEFAULT_USE_INSPECTOR_CLIENT);
+    rerender(<App />);
+    resolveContent(await nativeSessionFile().text());
+
+    await waitFor(() =>
+      expect(notificationsMock.show).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Session could not be opened",
+          message: "Disconnect the live server before opening a session.",
+        }),
+      ),
+    );
+    expect(
+      screen.queryByTestId("session-replay-double"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores an older artifact when overlapping file reads resolve out of order", async () => {
+    const user = userEvent.setup();
+    let resolveOlderContent: (content: string) => void = () => {};
+    const olderContentPromise = new Promise<string>((resolve) => {
+      resolveOlderContent = resolve;
+    });
+    const olderFile = nativeSessionFile();
+    vi.spyOn(olderFile, "text").mockReturnValue(olderContentPromise);
+    const latestContent = (await nativeSessionFile().text())
+      .replace("app-replay-session", "latest-replay-session")
+      .replace("Replay Server", "Latest Replay Server");
+    const latestFile = nativeSessionFile(latestContent);
+    renderWithMantine(<App />);
+
+    await user.upload(screen.getByTestId("open-session-file"), olderFile);
+    await user.upload(screen.getByTestId("open-session-file"), latestFile);
+
+    expect(await screen.findByText("latest-replay-session")).toBeVisible();
+    await act(async () => {
+      resolveOlderContent(await nativeSessionFile().text());
+    });
+    expect(screen.getByText("latest-replay-session")).toBeVisible();
+    expect(screen.queryByText("app-replay-session")).not.toBeInTheDocument();
+    expect(notificationsMock.show).not.toHaveBeenCalled();
+  });
+});
 
 describe("App failed-connection card border (#1621)", () => {
   beforeEach(() => {

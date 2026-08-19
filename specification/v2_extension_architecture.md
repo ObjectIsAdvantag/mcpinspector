@@ -5,8 +5,7 @@
 - **Purpose:** design and implementation plan for an experimental fork
 - **Maturity:** candidate architecture; public extension compatibility is not promised
 - **Implemented:** Phase 0 contracts/static discovery, Phase 1 built-in command registry and CLI
-  command lifecycle, and the Phase 2 artifact/native-session foundation plus CLI and Web
-  capture/export
+  command lifecycle, and Phase 2 native-session capture/export plus bounded, read-only Web replay
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -714,7 +713,7 @@ Exit criteria:
 
 ### Phase 2 — Artifact service and native session format
 
-**Status: foundation plus CLI and Web capture/export implemented.** The static catalog now advertises
+**Status: implemented.** The static catalog now advertises
 `modelcontextprotocol.inspector-session-1` for JSON export and validation. Shared code provides
 artifact plan/format-handler/output contracts, a v1 native schema, a bounded untrusted parser, a
 snapshot builder, and centralized recursive redaction. The builder accepts only serializable DTOs
@@ -736,7 +735,13 @@ offers an Export Session action in the connected-server header. Repeated exports
 connection share a session ID, while each download receives a fresh capture timestamp. The native
 format handler still owns export and validation; browser file access remains host-owned.
 
-Still to implement in this phase are read-only import/replay stores.
+The Web client also offers **Open Session** from the server list whenever the live connection is
+disconnected. It checks the selected file size before reading, parses it through the shared
+bounded parser, and projects it into an immutable read-only store. A dedicated full-screen replay
+shows every non-empty artifact section without creating an InspectorClient, reconnecting, launching
+a recorded command, fetching recorded URLs or attachments, starting OAuth, activating extensions,
+or changing the server catalog. The schema and workflows are documented in
+[`docs/native-session-record-replay.md`](../docs/native-session-record-replay.md).
 
 Deliverables:
 
@@ -798,7 +803,7 @@ Deliverables:
 
 - browser entrypoint loading in a Web Worker;
 - sandboxed viewer iframe and message schemas;
-- read-only native session viewer integration;
+- extension-provided viewer integration over the read-only native session store;
 - browser capability/trust checks;
 - extension lifecycle and browser smoke coverage.
 
@@ -911,11 +916,11 @@ Documentation changes are deliverables, not cleanup:
 
 ## 18. Recommended next implementation slice
 
-Phase 0, Phase 1, and the capture/export portion of Phase 2 now validate static discovery,
-canonical/short command selection, connected capture in CLI and Web, centralized redaction, and
-host-owned artifact output. The next independent slice is Phase 2's read-only import/replay stores.
-It should not pull in external loading, the browser extension host, or MCP Description mapping
-prematurely.
+Phase 0, Phase 1, and Phase 2 now validate static discovery, canonical/short command selection,
+connected capture in CLI and Web, centralized redaction, host-owned artifact output, and bounded
+offline replay. The next independent slice is Phase 3's built-in `mcpdesc-0.7` export. It should use
+the established artifact service without pulling in external extension loading or the browser
+extension host prematurely.
 
 Do not combine the child-process host, browser viewer, session schema, and MCP Description exporter
 in one change. Each introduces a different compatibility and security boundary and needs an

@@ -84,6 +84,22 @@ describe("createWebSessionSnapshot", () => {
     );
   });
 
+  it("normalizes absent and invalid live values without unsafe casts", () => {
+    const withoutServerInfo = {
+      ...context(),
+      serverInfo: undefined,
+      tools: [undefined],
+    };
+    expect(createWebSessionSnapshot(withoutServerInfo)).toMatchObject({
+      server: { implementation: {} },
+      discovery: { tools: [{}] },
+    });
+
+    expect(() =>
+      createWebSessionSnapshot({ ...context(), tools: [1] }),
+    ).toThrow(/expected record/i);
+  });
+
   it("rejects circular and unparsable live values", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;

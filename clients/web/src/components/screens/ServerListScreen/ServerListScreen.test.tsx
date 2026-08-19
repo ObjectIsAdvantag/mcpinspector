@@ -25,6 +25,8 @@ const baseProps = {
   onImportConfig: vi.fn(),
   onImportServerJson: vi.fn(),
   onExport: vi.fn(),
+  onOpenSession: vi.fn(),
+  sessionOpenDisabled: false,
   onToggleConnection: vi.fn(),
   onConnectionInfo: vi.fn(),
   onSettings: vi.fn(),

@@ -1,4 +1,7 @@
-import { Button, Group } from "@mantine/core";
+import { useRef } from "react";
+import { Button, FileButton, Group } from "@mantine/core";
+import { MdFolderOpen } from "react-icons/md";
+import { INSPECTOR_SESSION_MEDIA_TYPE } from "@inspector/core/extensions/api/sessions.js";
 import { ListToggle } from "../../elements/ListToggle/ListToggle";
 import {
   ServerAddMenu,
@@ -11,6 +14,10 @@ export interface ServerListControlsProps extends AddServerMenuProps {
   onToggleList: () => void;
   /** Download the current server list as a canonical `mcp.json` file. */
   onExport: () => void;
+  /** Select a passive native-session artifact for read-only replay. */
+  onOpenSession: (file: File | null) => void;
+  /** Opening an artifact is permitted only while the live client is disconnected. */
+  sessionOpenDisabled: boolean;
   /** When false (read-only session), the Add menu is hidden. Defaults to true. */
   writable?: boolean;
 }
@@ -22,6 +29,11 @@ const ControlsRow = Group.withProps({
   gap: "sm",
 });
 
+const OpenSessionButton = Button.withProps({
+  variant: "default",
+  leftSection: <MdFolderOpen size={18} />,
+});
+
 export function ServerListControls({
   compact,
   serverCount,
@@ -30,10 +42,38 @@ export function ServerListControls({
   onImportConfig,
   onImportServerJson,
   onExport,
+  onOpenSession,
+  sessionOpenDisabled,
   writable = true,
 }: ServerListControlsProps) {
+  const resetSessionFileRef = useRef<() => void>(null);
+
+  function handleOpenSession(file: File | null): void {
+    resetSessionFileRef.current?.();
+    onOpenSession(file);
+  }
+
   return (
     <ControlsRow>
+      <FileButton
+        onChange={handleOpenSession}
+        accept={`${INSPECTOR_SESSION_MEDIA_TYPE},application/json,.json`}
+        resetRef={resetSessionFileRef}
+      >
+        {(props) => (
+          <OpenSessionButton
+            {...props}
+            disabled={sessionOpenDisabled}
+            title={
+              sessionOpenDisabled
+                ? "Disconnect before opening a session"
+                : "Open a recorded Inspector session"
+            }
+          >
+            Open Session
+          </OpenSessionButton>
+        )}
+      </FileButton>
       <Button variant="default" onClick={onExport} disabled={serverCount === 0}>
         Export
       </Button>

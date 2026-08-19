@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Anchor,
   Box,
@@ -164,7 +171,10 @@ import {
 } from "./components/groups/PendingClientRequestModal/PendingClientRequestModal";
 import { buildExportFilename, downloadJsonFile } from "./lib/downloadFile";
 import { exportWebSessionArtifact } from "./lib/exportSessionArtifact";
+import { loadNativeSessionReplay } from "./lib/loadSessionArtifact";
 import { createWebSessionSnapshot } from "./utils/sessionSnapshot";
+import type { NativeSessionReplayStore } from "@inspector/core/extensions/builtin/inspector-session/replay.js";
+import { SessionReplayView } from "./components/views/SessionReplayView/SessionReplayView";
 import { INSPECTOR_SERVERS_TAB } from "./utils/inspectorTabs";
 import { enrichProtocolEntries } from "./utils/correlateTransportErrors";
 import { visibleMalformedListItems } from "./utils/malformedListReport";
@@ -627,15 +637,15 @@ function isStepUpConfirmation(
 /** Which in-flight action opened the step-up modal (for scoped cancel UX). */
 type StepUpSource = "tool" | "prompt" | "resource" | "ambient" | "app";
 
-function App() {
-  // Theme toggle plumbing (preserved from the pre-wire placeholder).
-  const { setColorScheme } = useMantineColorScheme();
-  const computedColorScheme = useComputedColorScheme("light");
-  const isDark = computedColorScheme === "dark";
-  const onToggleTheme = useCallback(() => {
-    setColorScheme(isDark ? "light" : "dark");
-  }, [isDark, setColorScheme]);
+interface LiveInspectorAppProps {
+  onOpenReplay: (session: NativeSessionReplayStore) => void;
+  onToggleTheme: () => void;
+}
 
+function LiveInspectorApp({
+  onOpenReplay,
+  onToggleTheme,
+}: LiveInspectorAppProps) {
   // Server list — sourced from ~/.mcp-inspector/mcp.json via the backend's
   // `/api/servers` routes. First-launch seeds are written by the backend when
   // the file is absent, so this hook returns a non-empty list on first load.
@@ -1001,6 +1011,17 @@ function App() {
     malformedListItems,
     lastError,
   } = useInspectorClient(inspectorClient);
+  const connectionStatusRef = useRef(connectionStatus);
+  useLayoutEffect(() => {
+    connectionStatusRef.current = connectionStatus;
+  }, [connectionStatus]);
+  const sessionLoadIdRef = useRef(0);
+  useEffect(
+    () => () => {
+      sessionLoadIdRef.current += 1;
+    },
+    [],
+  );
   const {
     tools: managedTools,
     error: toolsLoadError,
@@ -3857,6 +3878,41 @@ function App() {
     downloadJsonFile("mcp.json", serializeMcpConfig(servers));
   }, [servers]);
 
+  const onOpenSession = useCallback(
+    (file: File | null) => {
+      if (!file) return;
+      const loadId = ++sessionLoadIdRef.current;
+      if (connectionStatus !== "disconnected") {
+        notifications.show({
+          title: "Disconnect first",
+          message: "Disconnect the live server before opening a session.",
+          color: "yellow",
+        });
+        return;
+      }
+
+      void loadNativeSessionReplay(file)
+        .then((session) => {
+          if (loadId !== sessionLoadIdRef.current) return;
+          if (connectionStatusRef.current !== "disconnected") {
+            throw new Error(
+              "Disconnect the live server before opening a session.",
+            );
+          }
+          onOpenReplay(session);
+        })
+        .catch((error: unknown) => {
+          if (loadId !== sessionLoadIdRef.current) return;
+          notifications.show({
+            title: "Session could not be opened",
+            message: error instanceof Error ? error.message : String(error),
+            color: "red",
+          });
+        });
+    },
+    [connectionStatus, onOpenReplay],
+  );
+
   const onExportSession = useCallback(() => {
     void (async () => {
       const server = servers.find(({ id }) => id === activeServerId);
@@ -4551,6 +4607,7 @@ function App() {
             setImportJsonOpen(true);
           }}
           onServerExport={onServerExport}
+          onOpenSession={onOpenSession}
           onConnectionInfo={() => setConnectionInfoModalOpen(true)}
           onServerSettings={(id) => setSettingsModalTargetId(id)}
           onServerEdit={(id) => setConfigModal({ mode: "edit", targetId: id })}
@@ -4756,6 +4813,34 @@ function App() {
         onCancel={handleStepUpCancel}
       />
     </>
+  );
+}
+
+function App() {
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme("light");
+  const isDark = computedColorScheme === "dark";
+  const onToggleTheme = useCallback(() => {
+    setColorScheme(isDark ? "light" : "dark");
+  }, [isDark, setColorScheme]);
+  const [replaySession, setReplaySession] =
+    useState<NativeSessionReplayStore | null>(null);
+
+  if (replaySession) {
+    return (
+      <SessionReplayView
+        session={replaySession}
+        onClose={() => setReplaySession(null)}
+        onToggleTheme={onToggleTheme}
+      />
+    );
+  }
+
+  return (
+    <LiveInspectorApp
+      onOpenReplay={setReplaySession}
+      onToggleTheme={onToggleTheme}
+    />
   );
 }
 

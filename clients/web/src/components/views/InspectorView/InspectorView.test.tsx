@@ -107,6 +107,7 @@ function makeProps(
     onServerImportConfig: vi.fn(),
     onServerImportJson: vi.fn(),
     onServerExport: vi.fn(),
+    onOpenSession: vi.fn(),
     onConnectionInfo: vi.fn(),
     onServerSettings: vi.fn(),
     onServerEdit: vi.fn(),
@@ -241,6 +242,27 @@ describe("InspectorView", () => {
     expect(
       screen.getByText("No servers configured. Add a server to get started."),
     ).toBeInTheDocument();
+  });
+
+  it("only enables Open Session while the live client is disconnected", () => {
+    const { rerender } = renderWithMantine(
+      <StatefulInspectorViewHost {...makeProps({ servers: [sampleServer] })} />,
+    );
+    expect(
+      screen.getByRole("button", { name: /Open Session/ }),
+    ).not.toBeDisabled();
+
+    rerender(
+      <StatefulInspectorViewHost
+        {...makeProps({
+          servers: [sampleServer],
+          activeServer: sampleServer.id,
+          connectionStatus: "connected",
+          initializeResult: connectedInit,
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Open Session/ })).toBeDisabled();
   });
 
   it("renders the server card from the input list", () => {

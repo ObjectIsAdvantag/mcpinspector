@@ -19,6 +19,8 @@ export const WithServers: Story = {
     onImportConfig: fn(),
     onImportServerJson: fn(),
     onExport: fn(),
+    onOpenSession: fn(),
+    sessionOpenDisabled: false,
   },
   play: async ({ canvasElement, args }) => {
     // Real-Chromium regression guard: Export is enabled when servers exist,
@@ -29,6 +31,9 @@ export const WithServers: Story = {
     await expect(exportBtn).not.toBeDisabled();
     await userEvent.click(exportBtn);
     await expect(args.onExport).toHaveBeenCalledTimes(1);
+    await expect(
+      body.getByRole("button", { name: /Open Session/ }),
+    ).not.toBeDisabled();
   },
 };
 
@@ -41,10 +46,15 @@ export const WithoutServers: Story = {
     onImportConfig: fn(),
     onImportServerJson: fn(),
     onExport: fn(),
+    onOpenSession: fn(),
+    sessionOpenDisabled: true,
   },
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
     const exportBtn = await body.findByRole("button", { name: /Export/ });
     await expect(exportBtn).toBeDisabled();
+    await expect(
+      body.getByRole("button", { name: /Open Session/ }),
+    ).toBeDisabled();
   },
 };
