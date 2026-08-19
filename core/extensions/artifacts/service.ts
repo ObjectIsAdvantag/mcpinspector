@@ -10,7 +10,7 @@ import {
   type StaticContributionCatalog,
 } from "../registry/contributionRegistry.js";
 
-export interface ArtifactProvider {
+export interface ArtifactFormatHandler {
   formatId: string;
   export(
     data: ExtensionJsonObject,
@@ -29,34 +29,34 @@ function errorDiagnostic(code: string, message: string): ArtifactDiagnostic {
   return { code, severity: "error", message, path: [] };
 }
 
-export class ArtifactProviderRegistry {
-  private readonly providers = new Map<string, ArtifactProvider>();
+export class ArtifactFormatHandlerRegistry {
+  private readonly handlers = new Map<string, ArtifactFormatHandler>();
   private readonly catalog: StaticContributionCatalog;
 
   constructor(catalog: StaticContributionCatalog) {
     this.catalog = catalog;
   }
 
-  register(provider: ArtifactProvider): void {
+  register(handler: ArtifactFormatHandler): void {
     const registration = resolveArtifactContribution(
       this.catalog,
-      provider.formatId,
+      handler.formatId,
     );
     if (registration === undefined) {
       throw new Error(
-        `Artifact provider has no contribution: ${provider.formatId}`,
+        `Artifact format handler has no contribution: ${handler.formatId}`,
       );
     }
-    if (this.providers.has(provider.formatId)) {
+    if (this.handlers.has(handler.formatId)) {
       throw new Error(
-        `Artifact provider already registered: ${provider.formatId}`,
+        `Artifact format handler already registered: ${handler.formatId}`,
       );
     }
-    this.providers.set(provider.formatId, provider);
+    this.handlers.set(handler.formatId, handler);
   }
 
-  resolve(formatId: string): ArtifactProvider | undefined {
-    return this.providers.get(formatId);
+  resolve(formatId: string): ArtifactFormatHandler | undefined {
+    return this.handlers.get(formatId);
   }
 }
 
@@ -72,11 +72,11 @@ function payloadMatchesPlan(
   );
 }
 
-/** Execute an export without giving the provider direct filesystem/stdout access. */
+/** Execute an export without giving the format handler filesystem/stdout access. */
 export async function executeArtifactExport(
   plan: ArtifactPlan,
   data: ExtensionJsonObject,
-  registry: ArtifactProviderRegistry,
+  registry: ArtifactFormatHandlerRegistry,
   sink: ArtifactOutputSink,
 ): Promise<ArtifactDiagnostic[]> {
   if (plan.operation !== "export") {
@@ -87,29 +87,29 @@ export async function executeArtifactExport(
       ),
     ];
   }
-  const provider = registry.resolve(plan.formatId);
-  if (provider === undefined) {
+  const handler = registry.resolve(plan.formatId);
+  if (handler === undefined) {
     return [
       errorDiagnostic(
-        "artifact.provider-missing",
-        `No provider is registered for artifact format: ${plan.formatId}`,
+        "artifact.handler-missing",
+        `No handler is registered for artifact format: ${plan.formatId}`,
       ),
     ];
   }
 
-  const result = await provider.export(data, plan.options);
+  const result = await handler.export(data, plan.options);
   if (result.payload === undefined) return result.diagnostics;
   if (!payloadMatchesPlan(plan, result.payload)) {
     return [
       ...result.diagnostics,
       errorDiagnostic(
         "artifact.payload-mismatch",
-        "Artifact provider returned content that does not match the selected plan",
+        "Artifact format handler returned content that does not match the selected plan",
       ),
     ];
   }
 
-  const validationDiagnostics = await provider.validate(result.payload);
+  const validationDiagnostics = await handler.validate(result.payload);
   const diagnostics = [...result.diagnostics, ...validationDiagnostics];
   if (diagnostics.some(({ severity }) => severity === "error")) {
     return diagnostics;
