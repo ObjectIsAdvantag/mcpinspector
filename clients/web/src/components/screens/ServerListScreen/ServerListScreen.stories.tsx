@@ -13,6 +13,8 @@ const meta: Meta<typeof ServerListScreen> = {
     onImportConfig: fn(),
     onImportServerJson: fn(),
     onExport: fn(),
+    onOpenSession: fn(),
+    sessionOpenDisabled: false,
     onToggleConnection: fn(),
     onConnectionInfo: fn(),
     onSettings: fn(),

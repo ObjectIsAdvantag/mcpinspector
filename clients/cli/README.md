@@ -87,6 +87,8 @@ discovery data returned by the invocation, protocol/network/stderr events, and t
 outcome. Sensitive values are redacted before serialization. Use `--output -` (or omit
 `--output`) to write only the artifact document to stdout; when a file is selected, the ordinary
 method result remains on stdout and the artifact is written atomically with owner-only permissions.
+See [Record and replay native Inspector sessions](../../docs/native-session-record-replay.md) for
+the schema, redaction policy, and disconnected Web replay workflow.
 
 ### Remote Servers
 

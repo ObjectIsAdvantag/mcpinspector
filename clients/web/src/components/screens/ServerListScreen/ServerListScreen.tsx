@@ -59,6 +59,10 @@ export interface ServerListScreenProps {
   onImportServerJson: () => void;
   /** Download the current server list as a canonical `mcp.json` file. */
   onExport: () => void;
+  /** Select a passive native-session artifact for read-only replay. */
+  onOpenSession: (file: File | null) => void;
+  /** Opening an artifact is permitted only while the live client is disconnected. */
+  sessionOpenDisabled: boolean;
   onToggleConnection: (id: string) => void;
   onConnectionInfo: (id: string) => void;
   onSettings: (id: string) => void;
@@ -195,6 +199,8 @@ export function ServerListScreen({
   onImportConfig,
   onImportServerJson,
   onExport,
+  onOpenSession,
+  sessionOpenDisabled,
   onToggleConnection,
   onConnectionInfo,
   onSettings,
@@ -293,6 +299,8 @@ export function ServerListScreen({
             onImportConfig={onImportConfig}
             onImportServerJson={onImportServerJson}
             onExport={onExport}
+            onOpenSession={onOpenSession}
+            sessionOpenDisabled={sessionOpenDisabled}
           />
         </PanelHeader>
 

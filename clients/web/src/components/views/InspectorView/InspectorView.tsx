@@ -514,6 +514,8 @@ export interface InspectorViewProps {
   onServerImportJson: () => void;
   /** Download the current server list as a canonical `mcp.json` file. */
   onServerExport: () => void;
+  /** Select a passive native-session artifact for read-only replay. */
+  onOpenSession: (file: File | null) => void;
   onConnectionInfo: (id: string) => void;
   onServerSettings: (id: string) => void;
   onServerEdit: (id: string) => void;
@@ -678,6 +680,7 @@ export function InspectorView({
   onServerImportConfig,
   onServerImportJson,
   onServerExport,
+  onOpenSession,
   onConnectionInfo,
   onServerSettings,
   onServerEdit,
@@ -1352,6 +1355,8 @@ export function InspectorView({
                 onImportConfig={onServerImportConfig}
                 onImportServerJson={onServerImportJson}
                 onExport={onServerExport}
+                onOpenSession={onOpenSession}
+                sessionOpenDisabled={connectionStatus !== "disconnected"}
                 onToggleConnection={onToggleConnection}
                 onConnectionInfo={onConnectionInfo}
                 onSettings={onServerSettings}

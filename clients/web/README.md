@@ -52,7 +52,7 @@ Components live under `src/components/` in four layers, smallest to largest:
 | `elements/` | ~31 | Leaf presentational pieces (badges, buttons, toggles) over Mantine primitives. |
 | `groups/` | ~63 | Composite pieces (cards, panels, modals, control bars). |
 | `screens/` | ~11 | Full tab screens (Tools, Resources, Servers, monitoring screens…). |
-| `views/` | 1 | `InspectorView` — the top-level layout that composes the screens. |
+| `views/` | 2 | `InspectorView` composes the live screens; `SessionReplayView` presents passive native-session artifacts. |
 
 Every screen and element has a `*.stories.tsx` (see [Storybook](#storybook)). Styling follows the Mantine-first rules in [`AGENTS.md`](../../AGENTS.md) — theme variants and component props over CSS, `--inspector-*` tokens over raw colors.
 
@@ -68,7 +68,7 @@ Two grab-bag directories, split by one rule: **`utils` = functions that compute;
 
 The top-level `src/types/` is a separate sibling — ambient `.d.ts` module stubs, not the place for new domain types (the one that lingers there, dead `navigation.ts`, is tracked for removal in [#1785](https://github.com/modelcontextprotocol/inspector/issues/1785)).
 
-### Native session export
+### Native session export and replay
 
 While connected, use the **Export session** action in the header to download a native Inspector
 session JSON artifact. It captures the active server configuration and negotiated metadata,
@@ -76,6 +76,13 @@ discovered primitives, protocol/network/console events, tasks, and subscriptions
 are redacted before serialization. Repeated exports from the same live connection share a session
 ID and receive distinct capture timestamps; the browser writes the validated artifact as an
 `inspector-session-<server>-<timestamp>.json` download.
+
+While no server is live, use **Open Session** on the Servers screen to open one of these files in a
+dedicated full-screen, read-only replay. Every non-empty artifact section is available from the
+left navigation. Opening a session parses bounded local JSON only: it does not reconnect, execute a
+recorded command, fetch a URL, start OAuth, activate extensions, or mutate the server catalog. See
+[Record and replay native Inspector sessions](../../docs/native-session-record-replay.md) for the
+workflow, schema reference, and security boundary.
 
 Nothing _enforces_ the boundary — no path alias keys off it, and the coverage `include` in `vite.config.ts` lists both directories, so a move between them is coverage-neutral. It's a human-legible import-time signal. See [`AGENTS.md`](../../AGENTS.md) for the full rule (including the whitelist caveat — a module placed outside `components`/`lib`/`utils`/`server` falls out of the ≥90 gate).
 
