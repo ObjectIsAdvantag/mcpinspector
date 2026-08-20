@@ -1,6 +1,6 @@
 import { AppShell } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { ViewHeader } from "./ViewHeader";
 
 const meta: Meta<typeof ViewHeader> = {
@@ -37,9 +37,23 @@ export const Connected: Story = {
     ],
     onTabChange: fn(),
     onExportSession: fn(),
+    onExportDescription: fn(),
     onDisconnect: fn(),
     onToggleTheme: fn(),
     onOpenClientSettings: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    if (args.connected !== true) {
+      throw new Error("The connected story requires connected props");
+    }
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Export description" }),
+    );
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await page.findByRole("menuitem", { name: "YAML" }));
+    await expect(args.onExportDescription).toHaveBeenCalledWith("yaml");
+    await waitFor(() => expect(page.queryByRole("menu")).toBeNull());
   },
 };
 

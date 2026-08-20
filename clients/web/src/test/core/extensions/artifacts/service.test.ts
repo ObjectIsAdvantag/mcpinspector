@@ -29,6 +29,10 @@ function plan(operation: ArtifactPlan["operation"] = "export"): ArtifactPlan {
     operation,
     encoding: "json",
     mediaType: INSPECTOR_SESSION_MEDIA_TYPE,
+    dataRequirements: {
+      serverDescription: "none",
+      session: "read",
+    },
     options: {},
     output: { kind: "stdout" },
   };
@@ -148,6 +152,22 @@ describe("executeArtifactExport", () => {
       expect.objectContaining({ code: "artifact.export-failed" }),
     ]);
     expect(write).not.toHaveBeenCalled();
+  });
+
+  it("passes the plan encoding to the format handler", async () => {
+    const { registry, sink } = setup();
+    const exportArtifact = vi.fn<ArtifactFormatHandler["export"]>(() => ({
+      payload: payload(),
+      diagnostics: [],
+    }));
+    registry.register({
+      ...INSPECTOR_SESSION_ARTIFACT_PROVIDER,
+      export: exportArtifact,
+    });
+
+    await executeArtifactExport(plan(), data(), registry, sink);
+
+    expect(exportArtifact).toHaveBeenCalledWith(data(), {}, "json");
   });
 
   it("rejects mismatched handler metadata before validation or output", async () => {

@@ -7,6 +7,11 @@ import {
 } from "@inspector/core/extensions/registry/contributionRegistry.js";
 import { INSPECTOR_SESSION_FORMAT_ID } from "@inspector/core/extensions/api/sessions.js";
 import {
+  MCPDESC_0_7_FORMAT_ID,
+  MCPDESC_0_7_JSON_MEDIA_TYPE,
+  MCPDESC_0_7_YAML_MEDIA_TYPE,
+} from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
+import {
   INCOMPATIBLE_MANIFEST,
   INVALID_MANIFEST,
   VALID_MANIFEST,
@@ -177,7 +182,7 @@ describe("createStaticContributionCatalog", () => {
     );
   });
 
-  it("registers built-in commands and the native session artifact", () => {
+  it("registers built-in commands and the implemented artifact formats", () => {
     const catalog = createBuiltinContributionCatalog(HOST);
     expect(catalog.diagnostics).toEqual([]);
     expect(catalog.commands.map(({ contribution }) => contribution.id)).toEqual(
@@ -201,10 +206,33 @@ describe("createStaticContributionCatalog", () => {
           operations: ["export", "validate"],
         }),
       }),
+      expect.objectContaining({
+        extensionId: "modelcontextprotocol.mcpdesc",
+        contribution: expect.objectContaining({
+          id: MCPDESC_0_7_FORMAT_ID,
+          artifactVersion: "0.7.0",
+          encodings: ["json", "yaml"],
+          mediaTypes: [
+            MCPDESC_0_7_JSON_MEDIA_TYPE,
+            MCPDESC_0_7_YAML_MEDIA_TYPE,
+          ],
+          operations: ["export", "validate"],
+          dataRequirements: {
+            serverDescription: "read",
+            session: "none",
+          },
+        }),
+      }),
     ]);
     expect(
       resolveArtifactContribution(catalog, INSPECTOR_SESSION_FORMAT_ID),
     ).toBe(catalog.artifactFormats[0]);
+    expect(resolveArtifactContribution(catalog, MCPDESC_0_7_FORMAT_ID)).toBe(
+      catalog.artifactFormats[1],
+    );
+    expect(
+      resolveArtifactContribution(catalog, "modelcontextprotocol.mcpdesc-0.8"),
+    ).toBeUndefined();
     expect(resolveArtifactContribution(catalog, "example.missing")).toBe(
       undefined,
     );

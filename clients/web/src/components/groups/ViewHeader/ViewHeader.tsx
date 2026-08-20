@@ -5,6 +5,7 @@ import {
   Box,
   Group,
   Image,
+  Menu,
   SegmentedControl,
   Text,
   Title,
@@ -16,12 +17,14 @@ import {
 import type { Implementation } from "@modelcontextprotocol/client";
 import {
   MdDownload,
+  MdDescription,
   MdLightMode,
   MdDarkMode,
   MdSettings,
 } from "react-icons/md";
 import { VscDebugDisconnect } from "react-icons/vsc";
 import type { ConnectionStatus } from "@inspector/core/mcp/types.js";
+import type { McpDescription07Encoding } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
 import { ServerStatusIndicator } from "../../elements/ServerStatusIndicator/ServerStatusIndicator";
 import {
   MonitoringToggle,
@@ -43,6 +46,7 @@ interface ConnectedProps {
   availableTabs: string[];
   onTabChange: (tab: string) => void;
   onExportSession: () => void;
+  onExportDescription: (encoding: McpDescription07Encoding) => void;
   onDisconnect: () => void;
   onToggleTheme: () => void;
   onOpenClientSettings: () => void;
@@ -204,6 +208,12 @@ const ExportSessionIcon = ActionIcon.withProps({
   "aria-label": "Export session",
 });
 
+const ExportDescriptionIcon = ActionIcon.withProps({
+  variant: "subtle",
+  size: 36,
+  "aria-label": "Export description",
+});
+
 const ClientSettingsToggle = ActionIcon.withProps({
   variant: "subtle",
   size: 36,
@@ -282,6 +292,9 @@ export function ViewHeader(props: ViewHeaderProps) {
   const handleTabChange = props.connected ? props.onTabChange : undefined;
   const handleExportSession = props.connected
     ? props.onExportSession
+    : undefined;
+  const handleExportDescription = props.connected
+    ? props.onExportDescription
     : undefined;
   const handleDisconnect = props.connected ? props.onDisconnect : undefined;
 
@@ -423,6 +436,26 @@ export function ViewHeader(props: ViewHeaderProps) {
                     <MdDownload size={20} />
                   </ExportSessionIcon>
                 </Tooltip>
+                <Menu>
+                  <Menu.Target>
+                    <ExportDescriptionIcon>
+                      <MdDescription size={20} />
+                    </ExportDescriptionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>Export Description</Menu.Label>
+                    <Menu.Item
+                      onClick={() => handleExportDescription?.("json")}
+                    >
+                      JSON
+                    </Menu.Item>
+                    <Menu.Item
+                      onClick={() => handleExportDescription?.("yaml")}
+                    >
+                      YAML
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
                 <Tooltip label="Disconnect from server">
                   <DisconnectIcon onClick={handleDisconnect}>
                     <VscDebugDisconnect size={20} />

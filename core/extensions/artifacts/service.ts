@@ -15,6 +15,7 @@ export interface ArtifactFormatHandler {
   export(
     data: ExtensionJsonObject,
     options: ExtensionJsonObject,
+    encoding?: string,
   ): Promise<ArtifactExportResult> | ArtifactExportResult;
   validate(
     payload: ArtifactPayload,
@@ -97,7 +98,7 @@ export async function executeArtifactExport(
     ];
   }
 
-  const result = await handler.export(data, plan.options);
+  const result = await handler.export(data, plan.options, plan.encoding);
   if (result.payload === undefined) return result.diagnostics;
   if (!payloadMatchesPlan(plan, result.payload)) {
     return [

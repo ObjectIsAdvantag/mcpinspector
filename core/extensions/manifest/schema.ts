@@ -77,7 +77,13 @@ const ArtifactFormatContributionSchema: z.ZodType<ArtifactFormatContribution> =
       displayName: z.string().trim().min(1),
       artifactVersion: z.string().trim().min(1),
       mediaTypes: z.array(z.string().regex(MEDIA_TYPE_PATTERN)).min(1),
-      encodings: z.array(z.string().regex(ENCODING_PATTERN)).min(1),
+      encodings: z
+        .array(z.string().regex(ENCODING_PATTERN))
+        .min(1)
+        .refine(
+          (encodings) => new Set(encodings).size === encodings.length,
+          "Artifact encodings must be unique",
+        ),
       operations: z.array(ArtifactOperationSchema).min(1),
       optionsSchema: ExtensionJsonObjectSchema.optional(),
       dataRequirements: z
@@ -87,7 +93,14 @@ const ArtifactFormatContributionSchema: z.ZodType<ArtifactFormatContribution> =
         })
         .strict(),
     })
-    .strict();
+    .strict()
+    .refine(
+      ({ encodings, mediaTypes }) => encodings.length === mediaTypes.length,
+      {
+        message: "Each artifact encoding must have one media type",
+        path: ["mediaTypes"],
+      },
+    );
 
 const ActivationEventSchema = z
   .string()

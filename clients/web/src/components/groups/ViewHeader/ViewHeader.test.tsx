@@ -40,6 +40,7 @@ const connectedProps = {
   availableTabs: ["Tools", "Resources", "Prompts"],
   onTabChange: vi.fn(),
   onExportSession: vi.fn(),
+  onExportDescription: vi.fn(),
   onDisconnect: vi.fn(),
   onToggleTheme: vi.fn(),
   onOpenClientSettings: vi.fn(),
@@ -206,6 +207,23 @@ describe("ViewHeader", () => {
       );
       await user.click(screen.getByRole("button", { name: "Export session" }));
       expect(onExportSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("exports a description in the selected menu encoding", async () => {
+      const user = userEvent.setup();
+      const onExportDescription = vi.fn();
+      renderWithMantine(
+        <ViewHeader
+          {...connectedProps}
+          onExportDescription={onExportDescription}
+        />,
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: "Export description" }),
+      );
+      await user.click(screen.getByRole("menuitem", { name: "YAML" }));
+      expect(onExportDescription).toHaveBeenCalledWith("yaml");
     });
 
     it("renders all available tabs", () => {

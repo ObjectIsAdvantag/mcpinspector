@@ -109,11 +109,14 @@ import { executeCommandPlan } from "./extensions/commands/execute.js";
 import { executeCliArtifactExport } from "./extensions/artifacts/execute.js";
 import {
   buildCliArtifactPlan,
+  type CliArtifactConnectionPlan,
   type CliArtifactCommandPlan,
 } from "./extensions/artifacts/plan.js";
 import { createCliSessionSnapshot } from "./extensions/artifacts/snapshot-source.js";
 import type { CliHostPlan } from "./host/plan.js";
 import type { ArtifactPlan } from "@inspector/core/extensions/artifacts/plan.js";
+import { collectServerDescriptionSnapshot } from "@inspector/core/extensions/builtin/serverDescriptionSnapshot.js";
+import { ExtensionJsonObjectSchema } from "@inspector/core/extensions/api/json.js";
 
 type CliPlan = CliCommandPlan | CliArtifactCommandPlan | CliHostPlan;
 
@@ -130,7 +133,7 @@ async function callMethod(
   serverName: string | undefined,
   serverConfig: MCPServerConfig,
   serverSettings: InspectorServerSettings | undefined,
-  args: MethodArgs & { method: string },
+  args: (MethodArgs & { method: string }) | undefined,
   clientConfig: ClientConfig,
   cliAuthOverrides: RunnerClientConfigOverrides,
   callbackUrlConfig: RunnerOAuthCallbackConfig,
@@ -219,6 +222,23 @@ async function callMethod(
       serverSettings,
       { storedAuthOnly, autoOpenControl },
     );
+
+    if (args === undefined) {
+      if (artifactPlan === undefined) {
+        throw new Error(
+          "Connected execution requires a method or artifact plan",
+        );
+      }
+      const snapshot = await collectServerDescriptionSnapshot({
+        client: inspectorClient,
+        serverConfig,
+      });
+      await executeCliArtifactExport(
+        artifactPlan,
+        ExtensionJsonObjectSchema.parse(snapshot),
+      );
+      return;
+    }
 
     const outcome = await withCliAuthRecoveryRetry(
       inspectorClient,
@@ -718,7 +738,7 @@ export function createCliPlan(argv?: string[]): CliPlan {
     )
     .option(
       "--artifact-plugin <format>",
-      "Export the connected invocation as an artifact (inspector-session or canonical format id).",
+      "Export an artifact (mcpdesc-0.7 performs fresh discovery; inspector-session records a connected --method invocation).",
     )
     .option(
       "--encoding <encoding>",
@@ -870,6 +890,25 @@ export function createCliPlan(argv?: string[]): CliPlan {
     };
   }
 
+  const artifactPlan = options.artifactPlugin
+    ? buildCliArtifactPlan(
+        options.artifactPlugin,
+        options.encoding,
+        options.output,
+      )
+    : undefined;
+  const isPrimaryArtifactAction =
+    artifactPlan?.dataRequirements.serverDescription === "read" &&
+    artifactPlan.dataRequirements.session === "none";
+  if (
+    isPrimaryArtifactAction &&
+    (options.command !== undefined || options.method !== undefined)
+  ) {
+    throw new Error(
+      `${options.artifactPlugin} is a primary artifact action and cannot be combined with --command or --method.`,
+    );
+  }
+
   const implicitSelector =
     options.method === SERVERS_LIST_COMMAND_ALIAS
       ? SERVERS_LIST_COMMAND_ALIAS
@@ -878,7 +917,10 @@ export function createCliPlan(argv?: string[]): CliPlan {
         : options.method !== undefined
           ? MCP_INVOKE_COMMAND_ID
           : undefined;
-  const selector = options.command ?? implicitSelector;
+  const selector =
+    options.command ??
+    implicitSelector ??
+    (isPrimaryArtifactAction ? MCP_INVOKE_COMMAND_ID : undefined);
   if (!selector) {
     throw new Error(
       "Method is required. Use --method to specify the method to invoke.",
@@ -905,12 +947,12 @@ export function createCliPlan(argv?: string[]): CliPlan {
   }
 
   if (contribution.connection === "connected") {
-    if (!options.method) {
+    if (!options.method && !isPrimaryArtifactAction) {
       throw new Error(
         "Method is required. Use --method to specify the method to invoke.",
       );
     }
-    if (!isOneShotMethod(options.method)) {
+    if (options.method !== undefined && !isOneShotMethod(options.method)) {
       throw new Error(
         `Unsupported method: ${options.method}. Supported --cli methods: ${ONE_SHOT_METHODS.join(", ")}, servers/list, servers/show.`,
       );
@@ -1012,8 +1054,7 @@ export function createCliPlan(argv?: string[]): CliPlan {
 
   if (
     contribution.id !== MCP_INVOKE_COMMAND_ID ||
-    contribution.serverSelection !== "exactly-one" ||
-    options.method === undefined
+    contribution.serverSelection !== "exactly-one"
   ) {
     throw new Error(
       `Unsupported connected built-in command: ${contribution.id}`,
@@ -1057,6 +1098,40 @@ export function createCliPlan(argv?: string[]): CliPlan {
     toolArg = parsed as Record<string, JsonValue>;
   }
 
+  const connectedPlanBase = {
+    ...commandPlan,
+    connection: contribution.connection,
+    serverSelection: contribution.serverSelection,
+    serverOptions,
+    serverName: options.server,
+    format,
+    adHoc,
+    connectTimeout: options.connectTimeout,
+    oauthStatePath,
+    waitForAuth: options.waitForAuth,
+    useStoredAuth: options.useStoredAuth === true,
+    clientConfigPath: options.clientConfig,
+    clientId: options.clientId,
+    clientSecret: options.clientSecret,
+    clientMetadataUrl: options.clientMetadataUrl,
+    callbackUrl: options.callbackUrl,
+    storedAuthOnly: options.storedAuthOnly === true,
+    relogin: options.relogin === true,
+  } satisfies Omit<CliConnectedCommandPlan, "methodArgs">;
+
+  if (options.method === undefined) {
+    if (!isPrimaryArtifactAction || artifactPlan === undefined) {
+      throw new Error(
+        "Method is required. Use --method to specify the method to invoke.",
+      );
+    }
+    return {
+      kind: "artifact-command",
+      command: connectedPlanBase,
+      artifact: artifactPlan,
+    };
+  }
+
   const methodArgs: MethodArgs & { method: string } = {
     method: options.method,
     toolName: options.toolName,
@@ -1086,35 +1161,14 @@ export function createCliPlan(argv?: string[]): CliPlan {
   };
 
   const connectedPlan: CliConnectedCommandPlan = {
-    ...commandPlan,
-    connection: contribution.connection,
-    serverSelection: contribution.serverSelection,
-    serverOptions,
-    serverName: options.server,
+    ...connectedPlanBase,
     methodArgs,
-    format,
-    adHoc,
-    connectTimeout: options.connectTimeout,
-    oauthStatePath,
-    waitForAuth: options.waitForAuth,
-    useStoredAuth: options.useStoredAuth === true,
-    clientConfigPath: options.clientConfig,
-    clientId: options.clientId,
-    clientSecret: options.clientSecret,
-    clientMetadataUrl: options.clientMetadataUrl,
-    callbackUrl: options.callbackUrl,
-    storedAuthOnly: options.storedAuthOnly === true,
-    relogin: options.relogin === true,
   };
-  if (!options.artifactPlugin) return connectedPlan;
+  if (artifactPlan === undefined) return connectedPlan;
   return {
     kind: "artifact-command",
     command: connectedPlan,
-    artifact: buildCliArtifactPlan(
-      options.artifactPlugin,
-      options.encoding,
-      options.output,
-    ),
+    artifact: artifactPlan,
   };
 }
 
@@ -1159,7 +1213,7 @@ async function runResolvedCommand(plan: CliResolvedCommandPlan): Promise<void> {
 }
 
 async function withStoredAuth(
-  plan: CliConnectedCommandPlan,
+  plan: CliConnectedCommandPlan | CliArtifactConnectionPlan,
 ): Promise<CliServerLoadOptions> {
   const serverOptions: CliServerLoadOptions = {
     ...plan.serverOptions,
@@ -1220,7 +1274,7 @@ async function withStoredAuth(
 }
 
 async function runConnectedCommand(
-  plan: CliConnectedCommandPlan,
+  plan: CliConnectedCommandPlan | CliArtifactConnectionPlan,
   artifactPlan?: ArtifactPlan,
 ): Promise<void> {
   if (plan.commandId !== MCP_INVOKE_COMMAND_ID) {

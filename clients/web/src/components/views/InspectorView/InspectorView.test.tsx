@@ -102,6 +102,7 @@ function makeProps(
     onOpenClientSettings: vi.fn(),
     onToggleConnection: vi.fn(),
     onExportSession: vi.fn(),
+    onExportDescription: vi.fn(),
     onDisconnect: vi.fn(),
     onServerAdd: vi.fn(),
     onServerImportConfig: vi.fn(),

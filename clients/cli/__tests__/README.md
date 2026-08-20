@@ -39,7 +39,7 @@ npm run validate          # format:check && lint && typecheck && test
 | `run-method.test.ts`                    | Handler dispatch against a real test server           |
 | `run-method-mocks.test.ts`              | Handler edge cases with mocks                         |
 | `command-plan.test.ts`                  | Registry selectors and command plan/execute lifecycle |
-| `artifacts.test.ts`                     | Native session file/stdout export and redaction       |
+| `artifacts.test.ts`                     | Native-session and MCP Description artifact export    |
 | `servers-list.test.ts`                  | `servers/list` / `servers/show` CLI routing           |
 | `cliOAuth.test.ts`                      | Connect / mid-RPC OAuth recovery                      |
 | `cli-oauth-navigation.test.ts`          | OSC 8, arm/disarm, `MCP_AUTO_OPEN_ENABLED`            |

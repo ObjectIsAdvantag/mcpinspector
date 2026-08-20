@@ -23,11 +23,26 @@ export interface ArtifactFormatContribution {
   id: string;
   displayName: string;
   artifactVersion: string;
+  /**
+   * Media types correspond to `encodings` by index. Manifest validation
+   * requires both arrays to have the same length and unique encodings.
+   */
   mediaTypes: string[];
   encodings: string[];
   operations: ArtifactOperation[];
   optionsSchema?: ExtensionJsonObject;
   dataRequirements: ArtifactDataRequirements;
+}
+
+/** Resolve the media type paired with one declared serialization encoding. */
+export function resolveArtifactMediaType(
+  contribution: ArtifactFormatContribution,
+  encoding: string,
+): string | undefined {
+  const encodingIndex = contribution.encodings.indexOf(encoding);
+  return encodingIndex === -1
+    ? undefined
+    : contribution.mediaTypes[encodingIndex];
 }
 
 export type ArtifactDiagnosticSeverity = "info" | "warning" | "error";

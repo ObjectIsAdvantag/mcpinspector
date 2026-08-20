@@ -1,0 +1,83 @@
+import type {
+  ArtifactDiagnostic,
+  ArtifactExportResult,
+  ArtifactPayload,
+} from "../../api/artifacts.js";
+import type { ExtensionJsonObject } from "../../api/json.js";
+import type { ArtifactFormatHandler } from "../../artifacts/service.js";
+import {
+  MCPDESC_0_7_ARTIFACT_VERSION,
+  MCPDESC_0_7_FORMAT_ID,
+  isMcpDescription07Encoding,
+  mcpDescription07MediaType,
+  type McpDescription07Encoding,
+} from "./constants.js";
+import { encodeMcpDescription07, parseMcpDescription07 } from "./encoding.js";
+import { buildMcpDescription07Document } from "./mapper.js";
+import { validateMcpDescription07Document } from "./validation.js";
+
+function errorDiagnostic(code: string, message: string): ArtifactDiagnostic[] {
+  return [{ code, severity: "error", message, path: [] }];
+}
+
+function hasMcpDescription07Metadata(
+  payload: ArtifactPayload,
+): payload is ArtifactPayload & { encoding: McpDescription07Encoding } {
+  return (
+    payload.formatId === MCPDESC_0_7_FORMAT_ID &&
+    payload.artifactVersion === MCPDESC_0_7_ARTIFACT_VERSION &&
+    isMcpDescription07Encoding(payload.encoding) &&
+    payload.mediaType === mcpDescription07MediaType(payload.encoding)
+  );
+}
+
+/** MCP Description 0.7 export and validation behavior for the artifact service. */
+export const MCPDESC_0_7_ARTIFACT_PROVIDER = {
+  formatId: MCPDESC_0_7_FORMAT_ID,
+  export(
+    data: ExtensionJsonObject,
+    _options: ExtensionJsonObject,
+    selectedEncoding = "json",
+  ): ArtifactExportResult {
+    if (!isMcpDescription07Encoding(selectedEncoding)) {
+      return {
+        diagnostics: errorDiagnostic(
+          "artifact.encoding-unsupported",
+          `MCP Description 0.7 does not support encoding: ${selectedEncoding}`,
+        ),
+      };
+    }
+    const result = buildMcpDescription07Document(data);
+    if (!result.ok) return result;
+    return {
+      payload: {
+        formatId: MCPDESC_0_7_FORMAT_ID,
+        artifactVersion: MCPDESC_0_7_ARTIFACT_VERSION,
+        encoding: selectedEncoding,
+        mediaType: mcpDescription07MediaType(selectedEncoding),
+        content: encodeMcpDescription07(result.document, selectedEncoding),
+      },
+      diagnostics: result.diagnostics,
+    };
+  },
+  validate(payload: ArtifactPayload): ArtifactDiagnostic[] {
+    if (!hasMcpDescription07Metadata(payload)) {
+      return errorDiagnostic(
+        "artifact.payload-invalid",
+        "Payload metadata does not identify a supported MCP Description 0.7 JSON or YAML artifact",
+      );
+    }
+    let document: unknown;
+    try {
+      document = parseMcpDescription07(payload.content, payload.encoding);
+    } catch {
+      return errorDiagnostic(
+        payload.encoding === "json"
+          ? "artifact.invalid-json"
+          : "artifact.invalid-yaml",
+        `MCP Description content is not valid ${payload.encoding.toUpperCase()}`,
+      );
+    }
+    return validateMcpDescription07Document(document);
+  },
+} satisfies ArtifactFormatHandler;

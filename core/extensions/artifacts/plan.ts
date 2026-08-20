@@ -1,4 +1,7 @@
-import type { ArtifactOperation } from "../api/artifacts.js";
+import type {
+  ArtifactDataRequirements,
+  ArtifactOperation,
+} from "../api/artifacts.js";
 import type { ExtensionJsonObject } from "../api/json.js";
 
 export type ArtifactOutputDestination =
@@ -17,6 +20,7 @@ export interface ArtifactPlan {
   operation: ArtifactOperation;
   encoding: string;
   mediaType: string;
+  dataRequirements: ArtifactDataRequirements;
   options: ExtensionJsonObject;
   output: ArtifactOutputDestination;
 }

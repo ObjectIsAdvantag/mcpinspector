@@ -32,7 +32,7 @@ inspector/
 ├── core/             # Shared code consumed via the `@inspector/core` alias (no package.json)
 │   ├── auth/         # OAuth: providers, discovery, storage, endpoint overrides, mid-session recovery (browser/node/remote backends)
 │   ├── client/       # Install-level client config (`client.json`): browser-safe parse/validate + Node load/save, remote backend, secrets
-│   ├── extensions/   # Extension contracts, built-in command/artifact metadata, native-session capture/replay
+│   ├── extensions/   # Extension contracts, built-in metadata, native-session replay, MCP Description export
 │   ├── json/         # JSON + parameter/argument conversion utilities, and the nullable-union
 │   │                 #   schema collapse shared by the web and TUI form builders
 │   ├── logging/      # Silent pino logger singleton
@@ -43,7 +43,7 @@ inspector/
 │   └── storage/      # File I/O helpers for the OAuth persist backends
 ├── test-servers/     # Composable MCP test servers + fixtures used by integration tests
 ├── scripts/          # Root build/verify tooling (install cascade, smokes, verify-build-gate, verify-format-coverage, verify-dep-lockstep, pack:verify)
-├── docs/             # Task-oriented guides (migration, server config, MCP Apps, native sessions, launcher/config plan)
+├── docs/             # Task-oriented guides (migration, server config, MCP Apps, native sessions, MCP Description, launcher/config plan)
 ├── specification/    # Design/build specifications
 ├── AGENTS.md         # Contribution rules for agents AND humans (see below)
 └── README.md         # You are here
@@ -58,6 +58,7 @@ Task-oriented guides live under [`docs/`](./docs):
 - [MCP server configuration](./docs/mcp-server-configuration.md) — which server(s) the Inspector connects to: `--catalog` vs. `--config`, ad-hoc targets, the `--` separator, the file format and its Inspector-specific per-server fields. Shared by all three clients; the cli and tui READMEs delegate their server-options sections to it.
 - [Reviewing an MCP App](./docs/mcp-app-review.md) — the CLI-first → one-shot-web recipe for automated App-tool review: `--app-info` probe → deep-link navigate → rendered widget, plus OAuth handoff and proxy support.
 - [Record and replay native Inspector sessions](./docs/native-session-record-replay.md) — Web and CLI capture, the versioned JSON schema, redaction, safe sharing, and disconnected read-only Web replay without the MCP server.
+- [Export MCP Description 0.7](./docs/mcp-description-export.md) — fresh Web/CLI discovery, JSON/YAML output, schema compatibility, diagnostics, and safe-minimum transport disclosure.
 - [Launcher and config consolidation](./docs/launcher-config-consolidation-plan.md) — why the launcher runs a client in-process rather than spawning it, and how the shared config processor fits in.
 
 ## Setup
