@@ -20,6 +20,7 @@ import {
 import { runCli } from "./helpers/cli-runner.js";
 import { expectCliSuccess } from "./helpers/assertions.js";
 import { INSPECTOR_SESSION_FORMAT_ID } from "@inspector/core/extensions/api/sessions.js";
+import { MCPDESC_0_7_FORMAT_ID } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
 
 const argv = (...args: string[]): string[] => [
   "node",
@@ -153,6 +154,66 @@ describe("CLI command plan creation", () => {
     });
   });
 
+  it("plans mcpdesc as a primary connected artifact action without a method", () => {
+    expect(
+      createCliPlan(
+        argv(
+          "fake-server",
+          "--artifact-plugin",
+          "mcpdesc-0.7",
+          "--encoding",
+          "yaml",
+        ),
+      ),
+    ).toMatchObject({
+      kind: "artifact-command",
+      command: {
+        connection: "connected",
+        serverSelection: "exactly-one",
+      },
+      artifact: {
+        formatId: MCPDESC_0_7_FORMAT_ID,
+        encoding: "yaml",
+        dataRequirements: {
+          serverDescription: "read",
+          session: "none",
+        },
+      },
+    });
+    const plan = createCliPlan(
+      argv("fake-server", "--artifact-plugin", "mcpdesc-0.7"),
+    );
+    if (plan.kind !== "artifact-command") {
+      throw new Error("Expected an artifact plan");
+    }
+    expect(plan.command).not.toHaveProperty("methodArgs");
+  });
+
+  it("rejects command or method selectors for primary mcpdesc export", () => {
+    expect(() =>
+      createCliPlan(
+        argv(
+          "fake-server",
+          "--method",
+          "tools/list",
+          "--artifact-plugin",
+          "mcpdesc-0.7",
+        ),
+      ),
+    ).toThrow(/primary artifact action.*--command or --method/);
+    expect(() =>
+      createCliPlan(
+        argv(
+          "fake-server",
+          "--command",
+          "mcp/invoke",
+          "--artifact-plugin",
+          "mcpdesc-0.7",
+        ),
+      ),
+    ).toThrow(/primary artifact action.*--command or --method/);
+  });
+
   it("validates artifact selectors, encoding, and command requirements", () => {
     expect(() =>
       createCliPlan(
@@ -188,6 +249,11 @@ describe("CLI command plan creation", () => {
         ),
       ),
     ).toThrow(/requires a connected MCP invocation/);
+    expect(() =>
+      createCliPlan(
+        argv("fake-server", "--artifact-plugin", "inspector-session"),
+      ),
+    ).toThrow(/Method is required/);
     expect(() =>
       createCliPlan(
         argv("fake-server", "--method", "tools/list", "--output", "x.json"),

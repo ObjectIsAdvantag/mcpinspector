@@ -90,6 +90,26 @@ method result remains on stdout and the artifact is written atomically with owne
 See [Record and replay native Inspector sessions](../../docs/native-session-record-replay.md) for
 the schema, redaction policy, and disconnected Web replay workflow.
 
+**Export a fresh MCP Description 0.7 document**
+
+```bash
+# JSON to stdout; no --method is required.
+npx @modelcontextprotocol/inspector --cli --config path/to/mcp.json --server demo \
+  --artifact-plugin mcpdesc-0.7 --encoding json --output -
+
+# YAML to a host-owned file.
+npx @modelcontextprotocol/inspector --cli --config path/to/mcp.json --server demo \
+  --artifact-plugin modelcontextprotocol.mcpdesc-0.7 \
+  --encoding yaml --output server.mcpdesc.yaml
+```
+
+MCP Description export is a standalone primary action: do not combine it with `--method` or
+`--command`. It connects, performs fresh capability-gated discovery with cache bypass and complete
+pagination, validates against the authoritative 0.7 schema, and writes only the artifact to
+stdout. Warnings and informational omissions go to stderr. See
+[Export MCP Description 0.7](../../docs/mcp-description-export.md) for format compatibility,
+failure semantics, and the transport-disclosure boundary.
+
 ### Remote Servers
 
 You can also connect to remote MCP servers using HTTP or SSE transports.
@@ -161,8 +181,8 @@ An explicit `--command mcp/invoke` still requires `--method`; the server command
 | `--connect-timeout <ms>`      | Connection timeout in ms. Defaults to `15000` for ad-hoc `--server-url`/target runs (so a black-holed host fails fast) and to the file-level timeout for `--catalog`/`--config` runs. `0` disables the timeout.                                                                                                                                                                                                      |
 | `--app-info`                  | Probe a tool's MCP App UI metadata without invoking it. With `--method tools/call --tool-name <name>`: prints one JSON line (`hasApp`, `resourceUri`, `csp`, `permissions`, `domain`, …) and exits `0` if the tool has an app or `2` (`no_app`) if not. With `--method tools/list`: emits NDJSON — one app-info line per tool over a single connection.                                                              |
 | `--format <text\|json>`       | Output format. `text` (default) pretty-prints the result. `json` emits a single JSON object on stdout (`{ "result": … }`, plus `{ "appInfo": … }` as a sibling key for App tools) with no banners, so the whole output pipes cleanly into `jq`.                                                                                                                                                                      |
-| `--artifact-plugin <format>`  | Export the connected invocation as an artifact. Accepts `inspector-session` or the canonical `modelcontextprotocol.inspector-session-1` ID. Requires a connected MCP command.                                                                                                                                                                                                                                         |
-| `--encoding <encoding>`       | Artifact encoding. The native session format currently supports `json` only. Requires `--artifact-plugin`.                                                                                                                                                                                                                                                                                                             |
+| `--artifact-plugin <format>`  | Export a built-in artifact. Native session accepts `inspector-session` or `modelcontextprotocol.inspector-session-1` and records a connected invocation. MCP Description accepts `mcpdesc-0.7` or `modelcontextprotocol.mcpdesc-0.7` and is a standalone fresh-discovery action with no `--method` / `--command`.                                                                                               |
+| `--encoding <encoding>`       | Artifact encoding. Native session supports `json`; MCP Description 0.7 supports `json` (default) and `yaml`. Requires `--artifact-plugin`.                                                                                                                                                                                                                                                                              |
 | `--output <path>`             | Artifact destination. A file path writes atomically; `-` selects stdout. Defaults to stdout when artifact export is enabled.                                                                                                                                                                                                                                                                                           |
 | `--relogin`                   | Delete stored OAuth for this server URL from the shared store before connect; interactive login still only runs if the server requires auth. Requires an HTTP/SSE URL (rejected for stdio). Conflicts with `--stored-auth-only` / `--use-stored-auth` / `--wait-for-auth` / no-connection server commands.                                                                                                        |
 | `--stored-auth-only`          | **CI / non-interactive safe:** never start interactive OAuth / step-up (and never auto-open a browser); use the shared store if present, otherwise fail immediately with `auth_required`. Prefer this over a bare pipe/CI run that would otherwise attempt interactive login.                                                                                                                                        |

@@ -1,13 +1,23 @@
 import type { ArtifactPlan } from "@inspector/core/extensions/artifacts/plan.js";
-import type { ArtifactFormatContribution } from "@inspector/core/extensions/api/artifacts.js";
+import {
+  resolveArtifactMediaType,
+  type ArtifactFormatContribution,
+} from "@inspector/core/extensions/api/artifacts.js";
 import type { RegisteredContribution } from "@inspector/core/extensions/registry/contributionRegistry.js";
 import type { CliConnectedCommandPlan } from "../commands/plan.js";
 import { resolveCliArtifact } from "../bootstrap.js";
 
 export interface CliArtifactCommandPlan {
   kind: "artifact-command";
-  command: CliConnectedCommandPlan;
+  command: CliConnectedCommandPlan | CliArtifactConnectionPlan;
   artifact: ArtifactPlan;
+}
+
+export interface CliArtifactConnectionPlan extends Omit<
+  CliConnectedCommandPlan,
+  "methodArgs"
+> {
+  methodArgs?: undefined;
 }
 
 /** Build an export plan from static contribution metadata without activation. */
@@ -44,7 +54,7 @@ export function buildCliArtifactPlanFromContribution(
   if (!contribution.operations.includes("export")) {
     throw new Error(`Artifact format ${selector} does not support export.`);
   }
-  const mediaType = contribution.mediaTypes[0];
+  const mediaType = resolveArtifactMediaType(contribution, selectedEncoding);
   if (mediaType === undefined) {
     throw new Error(`Artifact format ${selector} declares no media type.`);
   }
@@ -57,6 +67,7 @@ export function buildCliArtifactPlanFromContribution(
     operation: "export",
     encoding: selectedEncoding,
     mediaType,
+    dataRequirements: contribution.dataRequirements,
     options: {},
     output:
       outputPath === undefined || outputPath === "-"

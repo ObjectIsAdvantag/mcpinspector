@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseExtensionManifest } from "@inspector/core/extensions/manifest/parse.js";
 import { InspectorExtensionManifestSchema } from "@inspector/core/extensions/manifest/schema.js";
+import { resolveArtifactMediaType } from "@inspector/core/extensions/api/artifacts.js";
 import { INVALID_MANIFEST, VALID_MANIFEST } from "../fixtures.js";
 
 describe("InspectorExtensionManifestSchema", () => {
@@ -8,6 +9,17 @@ describe("InspectorExtensionManifestSchema", () => {
     expect(InspectorExtensionManifestSchema.parse(VALID_MANIFEST)).toEqual(
       VALID_MANIFEST,
     );
+  });
+
+  it("resolves media types by the validated encoding order", () => {
+    const contribution = VALID_MANIFEST.contributes.artifactFormats![0]!;
+    expect(resolveArtifactMediaType(contribution, "json")).toBe(
+      "application/json",
+    );
+    expect(resolveArtifactMediaType(contribution, "yaml")).toBe(
+      "application/yaml",
+    );
+    expect(resolveArtifactMediaType(contribution, "toml")).toBeUndefined();
   });
 
   it("accepts a built-in manifest without runtime entrypoints", () => {
@@ -62,6 +74,30 @@ describe("InspectorExtensionManifestSchema", () => {
       },
     };
     expect(InspectorExtensionManifestSchema.safeParse(manifest).success).toBe(
+      false,
+    );
+  });
+
+  it("requires a unique encoding and one same-index media type per encoding", () => {
+    const mismatched = structuredClone(VALID_MANIFEST);
+    mismatched.contributes.artifactFormats![0]!.mediaTypes = [
+      "application/json",
+    ];
+    const mismatchedResult =
+      InspectorExtensionManifestSchema.safeParse(mismatched);
+    expect(mismatchedResult.success).toBe(false);
+    if (!mismatchedResult.success) {
+      expect(mismatchedResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          message: "Each artifact encoding must have one media type",
+          path: ["contributes", "artifactFormats", 0, "mediaTypes"],
+        }),
+      );
+    }
+
+    const duplicate = structuredClone(VALID_MANIFEST);
+    duplicate.contributes.artifactFormats![0]!.encodings = ["json", "json"];
+    expect(InspectorExtensionManifestSchema.safeParse(duplicate).success).toBe(
       false,
     );
   });

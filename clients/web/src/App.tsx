@@ -29,6 +29,8 @@ import type {
   Tool,
 } from "@modelcontextprotocol/client";
 import { InspectorClient } from "@inspector/core/mcp/index.js";
+import type { McpDescription07Encoding } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
+import { collectServerDescriptionSnapshot } from "@inspector/core/extensions/builtin/serverDescriptionSnapshot.js";
 import { toRecord } from "@inspector/core/json/jsonUtils.js";
 import { getServerType } from "@inspector/core/mcp/config.js";
 import type {
@@ -167,7 +169,12 @@ import {
   PendingClientRequestModal,
   type PendingClientRequestContent,
 } from "./components/groups/PendingClientRequestModal/PendingClientRequestModal";
-import { buildExportFilename, downloadJsonFile } from "./lib/downloadFile";
+import {
+  buildExportFilename,
+  downloadBlob,
+  downloadJsonFile,
+} from "./lib/downloadFile";
+import { exportWebServerDescriptionArtifact } from "./lib/exportServerDescriptionArtifact";
 import { exportWebSessionArtifact } from "./lib/exportSessionArtifact";
 import { loadNativeSessionReplay } from "./lib/loadSessionArtifact";
 import { createWebSessionSnapshot } from "./utils/sessionSnapshot";
@@ -3936,6 +3943,60 @@ function LiveInspectorApp({
     subscriptions,
   ]);
 
+  const onExportDescription = useCallback(
+    (encoding: McpDescription07Encoding) => {
+      void (async () => {
+        const server = servers.find(({ id }) => id === activeServerId);
+        if (!server || !inspectorClient) {
+          throw new Error(
+            "The active connection is not ready for description export",
+          );
+        }
+
+        const snapshot = await collectServerDescriptionSnapshot({
+          client: inspectorClient,
+          serverConfig: server.config,
+        });
+        const artifact = await exportWebServerDescriptionArtifact(
+          snapshot,
+          encoding,
+        );
+        downloadBlob(
+          buildExportFilename(
+            "description",
+            activeServerId,
+            new Date(),
+            encoding,
+          ),
+          new Blob([artifact.content], { type: artifact.mediaType }),
+        );
+
+        const notices = artifact.diagnostics.filter(
+          ({ severity }) => severity !== "error",
+        );
+        if (notices.length > 0) {
+          const hasWarning = notices.some(
+            ({ severity }) => severity === "warning",
+          );
+          notifications.show({
+            title: hasWarning
+              ? "Description exported with warnings"
+              : "Description exported with notes",
+            message: notices.map(({ message }) => message).join("; "),
+            color: hasWarning ? "yellow" : "blue",
+          });
+        }
+      })().catch((error: unknown) => {
+        notifications.show({
+          title: "Description export failed",
+          message: error instanceof Error ? error.message : String(error),
+          color: "red",
+        });
+      });
+    },
+    [servers, activeServerId, inspectorClient],
+  );
+
   // Remove handler — runs after the user confirms in the modal. When removing
   // the active server, also tear down the session in-place so the client and
   // its 9 state managers can be GC'd now instead of lingering until the next
@@ -4546,6 +4607,7 @@ function LiveInspectorApp({
             void onToggleConnection(id);
           }}
           onExportSession={onExportSession}
+          onExportDescription={onExportDescription}
           onDisconnect={() => {
             void onDisconnect();
           }}

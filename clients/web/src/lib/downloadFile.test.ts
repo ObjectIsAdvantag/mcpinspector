@@ -147,6 +147,12 @@ describe("buildExportFilename", () => {
       /^inspector-protocol-alpha-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z\.json$/,
     );
   });
+
+  it("uses the selected description encoding as the extension", () => {
+    expect(buildExportFilename("description", "alpha", fixedNow, "yaml")).toBe(
+      "inspector-description-alpha-2026-03-17T10-00-42.123Z.yaml",
+    );
+  });
 });
 
 describe("fileNameFromUri", () => {

@@ -5,6 +5,13 @@ import {
   INSPECTOR_SESSION_FORMAT_ID,
   INSPECTOR_SESSION_MEDIA_TYPE,
 } from "../api/sessions.js";
+import {
+  MCPDESC_0_7_ARTIFACT_VERSION,
+  MCPDESC_0_7_EXTENSION_ID,
+  MCPDESC_0_7_FORMAT_ID,
+  MCPDESC_0_7_JSON_MEDIA_TYPE,
+  MCPDESC_0_7_YAML_MEDIA_TYPE,
+} from "./mcpdesc-0.7/constants.js";
 
 export const MCP_INVOKE_COMMAND_ID = "modelcontextprotocol.mcp.invoke";
 export const MCP_INVOKE_COMMAND_ALIAS = "mcp/invoke";
@@ -45,6 +52,44 @@ export const INSPECTOR_SESSION_BUILTIN_MANIFEST: InspectorExtensionManifest = {
         dataRequirements: {
           serverDescription: "none",
           session: "read",
+        },
+      },
+    ],
+  },
+};
+
+export const MCPDESC_0_7_BUILTIN_MANIFEST: InspectorExtensionManifest = {
+  id: MCPDESC_0_7_EXTENSION_ID,
+  displayName: "MCP Description 0.7 Artifact",
+  version: "0.1.0",
+  engines: {
+    inspector: ">=2.2.0",
+    extensionApi: "^0.1.0",
+  },
+  activationEvents: [
+    `onArtifactExport:${MCPDESC_0_7_FORMAT_ID}`,
+    `onArtifactValidate:${MCPDESC_0_7_FORMAT_ID}`,
+  ],
+  capabilities: {
+    serverData: "read",
+    sessionData: "none",
+    filesystem: "none",
+    network: false,
+    processExecution: false,
+    secrets: false,
+  },
+  contributes: {
+    artifactFormats: [
+      {
+        id: MCPDESC_0_7_FORMAT_ID,
+        displayName: "MCP Description 0.7",
+        artifactVersion: MCPDESC_0_7_ARTIFACT_VERSION,
+        mediaTypes: [MCPDESC_0_7_JSON_MEDIA_TYPE, MCPDESC_0_7_YAML_MEDIA_TYPE],
+        encodings: ["json", "yaml"],
+        operations: ["export", "validate"],
+        dataRequirements: {
+          serverDescription: "read",
+          session: "none",
         },
       },
     ],
@@ -126,4 +171,5 @@ export const BUILTIN_EXTENSION_MANIFESTS: readonly ExtensionManifestCandidate[] 
     { manifest: MCP_BUILTIN_MANIFEST, source: "builtin" },
     { manifest: SERVERS_BUILTIN_MANIFEST, source: "builtin" },
     { manifest: INSPECTOR_SESSION_BUILTIN_MANIFEST, source: "builtin" },
+    { manifest: MCPDESC_0_7_BUILTIN_MANIFEST, source: "builtin" },
   ];

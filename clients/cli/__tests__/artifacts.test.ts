@@ -19,6 +19,12 @@ import {
   type CliSessionSnapshotContext,
 } from "../src/extensions/artifacts/snapshot-source.js";
 import type { MethodOutcome } from "../src/handlers/method-types.js";
+import { parse } from "yaml";
+import {
+  MCPDESC_0_7_ARTIFACT_VERSION,
+  MCPDESC_0_7_FORMAT_ID,
+} from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
+import { validateMcpDescription07Document } from "@inspector/core/extensions/builtin/mcpdesc-0.7/validation.js";
 
 const SECRET_CANARY = "artifact-secret-canary";
 const tempDirs: string[] = [];
@@ -91,6 +97,60 @@ describe("CLI native session artifacts", () => {
   });
 });
 
+describe("CLI MCP Description 0.7 artifacts", () => {
+  it("exports a fresh valid JSON description without requiring --method", async () => {
+    const { command, args } = getTestMcpServerCommand();
+    const result = await runCli([
+      command,
+      ...args,
+      "--artifact-plugin",
+      "mcpdesc-0.7",
+      "--output",
+      "-",
+    ]);
+
+    expectCliSuccess(result);
+    const document: unknown = JSON.parse(result.stdout);
+    expect(document).toMatchObject({
+      mcpdesc: MCPDESC_0_7_ARTIFACT_VERSION,
+      info: { name: expect.any(String), version: expect.any(String) },
+      transports: [{ type: "stdio", command }],
+      tools: expect.any(Array),
+    });
+    expect(validateMcpDescription07Document(document)).toEqual([]);
+    expect(result.stdout.trim().split("\n")[0]).toBe("{");
+    expect(result.stderr).toContain(
+      "[artifact warning] artifact.source-field-omitted",
+    );
+    expect(result.stderr).toContain("stdio arguments were omitted");
+  });
+
+  it("exports YAML to a host-owned file with no stdout artifact", async () => {
+    const { command, args } = getTestMcpServerCommand();
+    const outputPath = tempArtifactPath().replace(
+      /session\.json$/,
+      "server.yaml",
+    );
+    const result = await runCli([
+      command,
+      ...args,
+      "--artifact-plugin",
+      MCPDESC_0_7_FORMAT_ID,
+      "--encoding",
+      "yaml",
+      "--output",
+      outputPath,
+    ]);
+
+    expectCliSuccess(result);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("stdio arguments were omitted");
+    const document: unknown = parse(readFileSync(outputPath, "utf8"));
+    expect(validateMcpDescription07Document(document)).toEqual([]);
+    expect(document).toMatchObject({ mcpdesc: MCPDESC_0_7_ARTIFACT_VERSION });
+  });
+});
+
 function snapshotContext(outcome: MethodOutcome): CliSessionSnapshotContext {
   return {
     inspectorVersion: "2.2.0",
@@ -156,6 +216,33 @@ describe("CLI artifact planning and snapshot adaptation", () => {
         undefined,
       ),
     ).toThrow(/declares no media type/);
+  });
+
+  it("pairs each selected encoding with its same-index media type", () => {
+    const artifact = buildCliArtifactPlanFromContribution(
+      "example",
+      {
+        extensionId: "example",
+        contribution: {
+          id: "example.format",
+          displayName: "Example",
+          artifactVersion: "1.0.0",
+          mediaTypes: ["application/example+json", "application/example+yaml"],
+          encodings: ["json", "yaml"],
+          operations: ["export"],
+          dataRequirements: {
+            serverDescription: "read",
+            session: "none",
+          },
+        },
+      },
+      "yaml",
+      undefined,
+    );
+    expect(artifact).toMatchObject({
+      encoding: "yaml",
+      mediaType: "application/example+yaml",
+    });
   });
 
   it("adapts result, NDJSON, and stream outcomes", () => {
@@ -228,6 +315,10 @@ describe("CLI artifact planning and snapshot adaptation", () => {
           operation: "export",
           encoding: "json",
           mediaType: "application/json",
+          dataRequirements: {
+            serverDescription: "none",
+            session: "none",
+          },
           options: {},
           output: { kind: "stdout" },
         },

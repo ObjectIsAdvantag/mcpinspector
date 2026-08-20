@@ -76,6 +76,7 @@ export function isHttpUrl(url: string): URL | null {
  */
 export type ExportKind =
   | "session"
+  | "description"
   | "protocol"
   | "protocol-pinned"
   | "protocol-unpinned"
@@ -99,9 +100,10 @@ export function buildExportFilename(
   kind: ExportKind,
   serverId: string | undefined,
   now: Date = new Date(),
+  extension: "json" | "yaml" = "json",
 ): string {
   const iso = now.toISOString().replace(/:/g, "-");
   const id = serverId ? encodeURIComponent(serverId) : undefined;
   const segments = ["inspector", kind, ...(id ? [id] : []), iso];
-  return `${segments.join("-")}.json`;
+  return `${segments.join("-")}.${extension}`;
 }

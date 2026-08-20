@@ -23,8 +23,10 @@ export default defineConfig({
     "@napi-rs/keyring",
     "@modelcontextprotocol/client",
     "@modelcontextprotocol/core",
+    "ajv-formats",
     "commander",
     "pino",
+    "yaml",
   ],
   esbuildOptions(options) {
     options.alias = {

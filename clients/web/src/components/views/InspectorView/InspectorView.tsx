@@ -41,6 +41,7 @@ import type {
 import { isTerminalStatus } from "@inspector/core/mcp/types.js";
 import { isAppTool } from "@inspector/core/mcp/apps.js";
 import { TASKS_EXTENSION_KEY } from "@inspector/core/mcp/modernTaskSchemas.js";
+import type { McpDescription07Encoding } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
 import { ViewHeader } from "../../groups/ViewHeader/ViewHeader";
 import { VersionBadge } from "../../elements/VersionBadge/VersionBadge";
 import { CopyrightBadge } from "../../elements/CopyrightBadge/CopyrightBadge";
@@ -506,6 +507,8 @@ export interface InspectorViewProps {
   onToggleConnection: (id: string) => void;
   /** Download a native snapshot of the active live connection. */
   onExportSession: () => void;
+  /** Discover and download an MCP Description 0.7 artifact. */
+  onExportDescription: (encoding: McpDescription07Encoding) => void;
   onDisconnect: () => void;
 
   // Server list actions.
@@ -675,6 +678,7 @@ export function InspectorView({
   onOpenClientSettings,
   onToggleConnection,
   onExportSession,
+  onExportDescription,
   onDisconnect,
   onServerAdd,
   onServerImportConfig,
@@ -1327,6 +1331,7 @@ export function InspectorView({
             availableTabs={headerTabs}
             onTabChange={onActiveTabChange}
             onExportSession={onExportSession}
+            onExportDescription={onExportDescription}
             onDisconnect={onDisconnect}
             onToggleTheme={onToggleTheme}
             onOpenClientSettings={onOpenClientSettings}

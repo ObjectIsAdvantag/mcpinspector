@@ -5,7 +5,8 @@
 - **Purpose:** design and implementation plan for an experimental fork
 - **Maturity:** candidate architecture; public extension compatibility is not promised
 - **Implemented:** Phase 0 contracts/static discovery, Phase 1 built-in command registry and CLI
-  command lifecycle, and Phase 2 native-session capture/export plus bounded, read-only Web replay
+  command lifecycle, Phase 2 native-session capture/export plus bounded, read-only Web replay, and
+  Phase 3 fresh MCP Description 0.7 JSON/YAML export in CLI and Web
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -409,6 +410,9 @@ interface ServerDescriptionSnapshot {
   serverInfo?: JsonObject;
   capabilities?: JsonObject;
   instructions?: string;
+  transport:
+    | { type: "stdio"; command: string }
+    | { type: "sse" | "streamable-http"; url: string };
   tools: JsonObject[];
   resources: JsonObject[];
   resourceTemplates: JsonObject[];
@@ -419,7 +423,10 @@ interface ServerDescriptionSnapshot {
 
 The host creates this DTO using capability-gated parallel list operations with cache bypass. It
 excludes tools the Inspector already considers invalid and emits diagnostics describing each
-exclusion. The extension maps only this DTO to its external format.
+exclusion. Transport disclosure is safe-minimum: stdio exposes only the command, while remote
+HTTP(S) URLs lose credentials, query parameters, and fragments; arguments, environment values,
+headers, and request-init objects never cross the boundary. The extension maps only this DTO to
+its external format.
 
 ### Session API
 
@@ -509,10 +516,16 @@ The format handler:
 2. projects SDK/Inspector DTOs through a version-specific allowlist;
 3. never copies unknown SDK fields blindly into the artifact;
 4. validates the projected document against the authoritative MCP Description 0.7 schema with
-   AJV;
+  AJV and `ajv-formats`, including URI and email assertions;
 5. emits JSON or YAML through the host output sink;
 6. returns diagnostics for excluded invalid tools and unsupported source fields;
 7. fails before writing when validation fails.
+
+The CLI treats this as a standalone primary artifact action: it connects and discovers without an
+unrelated `--method` or `--command`. An advertised-list failure fails the whole export rather than
+producing a misleading partial document. A negotiated protocol version outside the 0.7 schema's
+enum also fails validation; the mapper neither omits nor coerces it. Successful diagnostics are
+host-owned UI/stderr output and never contaminate artifact stdout.
 
 The schema and mapping are version-specific modules. A shared collector is allowed; a shared
 "latest mcpdesc" mapper is not.
@@ -906,8 +919,10 @@ Documentation changes are deliverables, not cleanup:
   compatibility aliases and do not add a subcommand namespace yet.
 3. Whether `--artifact-plugin` remains the public spelling or becomes `--artifact-format` before
   release. The manifest model supports either without changing handler contracts.
-4. Which server fields the broker exposes to artifact format handlers and which always remain
-  host-only.
+4. **Resolved for Phase 3:** MCP Description handlers receive safe-minimum transport identity only:
+  stdio command or sanitized HTTP(S) URL. Arguments, environment values, headers, request-init
+  objects, credentials, query parameters, and fragments remain host-only. Any future artifact
+  needing more fields requires a separate capability and disclosure review.
 5. Whether external Node extensions are acceptable without OS sandboxing in the fork.
 6. How extension trust and enablement are persisted per user versus per catalog/workspace.
 7. Whether external extension packages use a custom archive immediately or a constrained npm
@@ -916,11 +931,11 @@ Documentation changes are deliverables, not cleanup:
 
 ## 18. Recommended next implementation slice
 
-Phase 0, Phase 1, and Phase 2 now validate static discovery, canonical/short command selection,
-connected capture in CLI and Web, centralized redaction, host-owned artifact output, and bounded
-offline replay. The next independent slice is Phase 3's built-in `mcpdesc-0.7` export. It should use
-the established artifact service without pulling in external extension loading or the browser
-extension host prematurely.
+Phase 0 through Phase 3 now validate static discovery, canonical/short command selection,
+connected capture in CLI and Web, centralized redaction, host-owned artifact output, bounded
+offline replay, and fresh schema-validated MCP Description 0.7 JSON/YAML export. The next
+independent slice is Phase 4's external Node extension host. It should reuse the brokered contracts
+proved by the built-ins without pulling in the browser runtime or arbitrary UI injection.
 
 Do not combine the child-process host, browser viewer, session schema, and MCP Description exporter
 in one change. Each introduces a different compatibility and security boundary and needs an
