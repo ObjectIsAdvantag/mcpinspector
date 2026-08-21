@@ -91,10 +91,10 @@ After resolving conflicts, inspect both behavior and patch identity with `git ra
 
 ## Preparing portable upstream work
 
-The reference repository accepts detailed issues rather than unsolicited pull requests. Upstream work therefore follows this sequence:
+The reference repository accepts detailed issues rather than unsolicited pull requests. The canonical tracker is [modelcontextprotocol/inspector#1025](https://github.com/modelcontextprotocol/inspector/issues/1025), **Placeholder: Inspector V2 Plugins Spec**, currently scheduled for v2.5.0. Upstream work therefore follows this sequence:
 
-1. Search for an existing plugin/extension architecture issue.
-2. Open a v2 feature request describing the problem before the implementation.
+1. Search again for newer or split plugin/extension architecture issues before posting.
+2. Add the architecture proposal to issue #1025 rather than opening a duplicate.
 3. Link the architecture specification and the proposal branch; share prompts and screenshots rather than attaching a diff.
 4. Ask maintainers to decide the trust model, persistence scope, package format, and public terminology before external code loading is proposed.
 5. If maintainers approve implementation, offer independent slices in this order:
@@ -109,9 +109,9 @@ The reference repository accepts detailed issues rather than unsolicited pull re
 
 Call this the **Inspector host extension architecture** or **Inspector plugin architecture** in upstream discussion so it is not confused with MCP protocol extensions.
 
-## Upstream feature-request draft
+## Upstream issue-comment draft
 
-Use `All / shared core` for the client field.
+Post this to issue #1025 after confirming no newer issue supersedes it.
 
 ### The problem
 
