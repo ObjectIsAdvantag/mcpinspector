@@ -203,7 +203,10 @@ describe("createStaticContributionCatalog", () => {
         extensionId: "modelcontextprotocol.inspector-session",
         contribution: expect.objectContaining({
           id: INSPECTOR_SESSION_FORMAT_ID,
-          operations: ["export", "validate"],
+          operationRequirements: {
+            export: expect.any(Object),
+            validate: expect.any(Object),
+          },
         }),
       }),
       expect.objectContaining({
@@ -216,10 +219,27 @@ describe("createStaticContributionCatalog", () => {
             MCPDESC_0_7_JSON_MEDIA_TYPE,
             MCPDESC_0_7_YAML_MEDIA_TYPE,
           ],
-          operations: ["export", "validate"],
-          dataRequirements: {
-            serverDescription: "read",
-            session: "none",
+          operationRequirements: {
+            export: {
+              dataRequirements: {
+                serverDescription: "read",
+                session: "none",
+              },
+              protocol: {
+                negotiatedVersions: [
+                  "2024-11-05",
+                  "2025-03-26",
+                  "2025-06-18",
+                  "2025-11-25",
+                ],
+              },
+            },
+            validate: {
+              dataRequirements: {
+                serverDescription: "none",
+                session: "none",
+              },
+            },
           },
         }),
       }),

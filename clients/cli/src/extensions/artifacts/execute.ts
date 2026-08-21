@@ -1,5 +1,6 @@
 import type { ExtensionJsonObject } from "@inspector/core/extensions/api/json.js";
 import type { ArtifactPlan } from "@inspector/core/extensions/artifacts/plan.js";
+import { evaluateArtifactOperationApplicability } from "@inspector/core/extensions/artifacts/applicability.js";
 import {
   ArtifactFormatHandlerRegistry,
   executeArtifactExport,
@@ -8,6 +9,24 @@ import { INSPECTOR_SESSION_ARTIFACT_PROVIDER } from "@inspector/core/extensions/
 import { MCPDESC_0_7_ARTIFACT_PROVIDER } from "@inspector/core/extensions/builtin/mcpdesc-0.7/artifact.js";
 import { CLI_BUILTIN_CONTRIBUTION_CATALOG } from "../bootstrap.js";
 import { createCliArtifactOutputSink } from "./output-sink.js";
+
+/** Fail closed before collection or handler activation when MCP is incompatible. */
+export function assertCliArtifactApplicable(
+  plan: ArtifactPlan,
+  negotiatedProtocolVersion: string | undefined,
+): void {
+  const applicability = evaluateArtifactOperationApplicability(
+    plan.formatId,
+    {
+      dataRequirements: plan.dataRequirements,
+      protocol: plan.protocolRequirements,
+    },
+    { connected: true, negotiatedProtocolVersion },
+  );
+  if (applicability.status !== "applicable") {
+    throw new Error(applicability.message);
+  }
+}
 
 /** Activate the selected built-in handler and execute it through host-owned output. */
 export async function executeCliArtifactExport(

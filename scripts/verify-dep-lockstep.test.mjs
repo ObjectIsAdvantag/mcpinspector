@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  directLockVersions,
   findSkew,
   hasReadableLockShape,
   importedPackageNames,
@@ -277,6 +278,28 @@ test("topLevelLockVersions: nested duplicates are ignored", () => {
     ["yaml", "2.9.0"],
     ["zod", "4.4.3"],
   ]);
+});
+
+test("directLockVersions: unrelated top-level transitive packages are ignored", () => {
+  const lock = {
+    lockfileVersion: 3,
+    packages: {
+      "": {
+        dependencies: { zod: "^4.0.0" },
+        devDependencies: { vitest: "^4.0.0" },
+      },
+      "node_modules/zod": { version: "4.4.3" },
+      "node_modules/vitest": { version: "4.1.10" },
+      "node_modules/ajv": { version: "6.15.0" },
+    },
+  };
+  assert.deepEqual(
+    [...directLockVersions(lock)],
+    [
+      ["zod", "4.4.3"],
+      ["vitest", "4.1.10"],
+    ],
+  );
 });
 
 test("topLevelLockVersions: a malformed or empty lockfile yields nothing", () => {

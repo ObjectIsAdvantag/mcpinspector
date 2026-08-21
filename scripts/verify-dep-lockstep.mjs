@@ -236,6 +236,28 @@ export function topLevelLockVersions(lock) {
 }
 
 /**
+ * Installed versions declared by this install's own manifest. A top-level
+ * transitive package is unrelated to first-party source in that install and
+ * cannot create the cross-install type boundary this guard measures.
+ */
+export function directLockVersions(lock) {
+  const root = lock?.packages?.[""] ?? {};
+  const declared = new Set(
+    [
+      root.dependencies,
+      root.devDependencies,
+      root.optionalDependencies,
+      root.peerDependencies,
+    ].flatMap((section) =>
+      section && typeof section === "object" ? Object.keys(section) : [],
+    ),
+  );
+  return new Map(
+    [...topLevelLockVersions(lock)].filter(([name]) => declared.has(name)),
+  );
+}
+
+/**
  * Whether a parsed lockfile has the shape this guard can read: a
  * `lockfileVersion` 2+ `packages` table, keyed by install path with `""` for
  * the root project.
@@ -490,7 +512,7 @@ export function main() {
 
   const installs = locks.map(({ dir, lock }) => ({
     dir,
-    versions: topLevelLockVersions(lock),
+    versions: directLockVersions(lock),
   }));
 
   const { failures, ignored } = partitionSkew(findSkew(candidates, installs));

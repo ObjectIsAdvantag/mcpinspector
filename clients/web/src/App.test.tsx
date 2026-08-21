@@ -380,6 +380,8 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
     activeTab?: string;
     erroredServerId?: string;
     initializeResult?: { serverInfo: { name: string; version: string } };
+    descriptionExportDisabledReason?: string;
+    onExportDescription: (encoding: "json" | "yaml") => void;
     onActiveTabChange: (tab: string) => void;
     onConnectionInfo: () => void;
     onToggleConnection: (id: string) => void;
@@ -457,6 +459,12 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
       <span data-testid="errored-server">
         {props.erroredServerId ?? "none"}
       </span>
+      <span data-testid="description-export-disabled-reason">
+        {props.descriptionExportDisabledReason ?? "none"}
+      </span>
+      <button onClick={() => props.onExportDescription("json")}>
+        export-description
+      </button>
       <button onClick={() => props.onActiveTabChange("Servers")}>
         switch-servers-tab
       </button>
@@ -953,6 +961,45 @@ describe("App initializeResult when connected without serverInfo (#1772)", () =>
     expect(
       screen.queryByText(SERVER_INFO_NOT_REPORTED_LABEL),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("App MCP Description applicability", () => {
+  beforeEach(() => {
+    notificationsMock.show.mockClear();
+  });
+
+  it("disables and guards export for a modern negotiated version", async () => {
+    vi.mocked(useInspectorClient).mockReturnValue({
+      ...DEFAULT_USE_INSPECTOR_CLIENT,
+      protocolVersion: "2026-07-28",
+    });
+    const user = userEvent.setup();
+    renderWithMantine(<App />);
+
+    expect(
+      screen.getByTestId("description-export-disabled-reason"),
+    ).toHaveTextContent("2026-07-28");
+    await user.click(screen.getByText("export-description"));
+    await waitFor(() =>
+      expect(notificationsMock.show).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Description export failed",
+          message: expect.stringContaining("2026-07-28"),
+        }),
+      ),
+    );
+  });
+
+  it("keeps export available for a legacy negotiated version", () => {
+    vi.mocked(useInspectorClient).mockReturnValue({
+      ...DEFAULT_USE_INSPECTOR_CLIENT,
+      protocolVersion: "2025-11-25",
+    });
+    renderWithMantine(<App />);
+    expect(
+      screen.getByTestId("description-export-disabled-reason"),
+    ).toHaveTextContent("none");
   });
 });
 

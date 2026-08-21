@@ -30,7 +30,9 @@ import type {
 } from "@modelcontextprotocol/client";
 import { InspectorClient } from "@inspector/core/mcp/index.js";
 import type { McpDescription07Encoding } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
+import { MCPDESC_0_7_EXPORT_REQUIREMENTS } from "@inspector/core/extensions/builtin/manifests.js";
 import { collectServerDescriptionSnapshot } from "@inspector/core/extensions/builtin/serverDescriptionSnapshot.js";
+import { evaluateArtifactOperationApplicability } from "@inspector/core/extensions/artifacts/applicability.js";
 import { toRecord } from "@inspector/core/json/jsonUtils.js";
 import { getServerType } from "@inspector/core/mcp/config.js";
 import type {
@@ -3943,9 +3945,29 @@ function LiveInspectorApp({
     subscriptions,
   ]);
 
+  const descriptionExportApplicability = useMemo(
+    () =>
+      evaluateArtifactOperationApplicability(
+        "MCP Description 0.7",
+        MCPDESC_0_7_EXPORT_REQUIREMENTS,
+        {
+          connected: connectionStatus === "connected",
+          negotiatedProtocolVersion: protocolVersion,
+        },
+      ),
+    [connectionStatus, protocolVersion],
+  );
+  const descriptionExportDisabledReason =
+    descriptionExportApplicability.status === "applicable"
+      ? undefined
+      : descriptionExportApplicability.message;
+
   const onExportDescription = useCallback(
     (encoding: McpDescription07Encoding) => {
       void (async () => {
+        if (descriptionExportApplicability.status !== "applicable") {
+          throw new Error(descriptionExportApplicability.message);
+        }
         const server = servers.find(({ id }) => id === activeServerId);
         if (!server || !inspectorClient) {
           throw new Error(
@@ -3994,7 +4016,7 @@ function LiveInspectorApp({
         });
       });
     },
-    [servers, activeServerId, inspectorClient],
+    [descriptionExportApplicability, servers, activeServerId, inspectorClient],
   );
 
   // Remove handler — runs after the user confirms in the modal. When removing
@@ -4608,6 +4630,7 @@ function LiveInspectorApp({
           }}
           onExportSession={onExportSession}
           onExportDescription={onExportDescription}
+          descriptionExportDisabledReason={descriptionExportDisabledReason}
           onDisconnect={() => {
             void onDisconnect();
           }}

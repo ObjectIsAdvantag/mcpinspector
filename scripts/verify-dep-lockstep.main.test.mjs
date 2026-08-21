@@ -41,7 +41,7 @@ const typescriptDir = path.dirname(
 const lock = (deps) => ({
   lockfileVersion: 3,
   packages: {
-    "": { name: "fixture" },
+    "": { name: "fixture", dependencies: deps },
     ...Object.fromEntries(
       Object.entries(deps).map(([name, version]) => [
         `node_modules/${name}`,

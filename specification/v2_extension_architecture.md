@@ -171,6 +171,8 @@ Illustrative manifest:
     "artifactFormats": [
       {
         "id": "example.mcpdesc-0.7",
+        "displayName": "MCP Description 0.7",
+        "artifactVersion": "0.7.0",
         "mediaTypes": [
           "application/json",
           "application/yaml"
@@ -179,13 +181,27 @@ Illustrative manifest:
           "json",
           "yaml"
         ],
-        "operations": [
-          "export",
-          "validate"
-        ],
-        "dataRequirements": {
-          "serverDescription": "read",
-          "session": "none"
+        "operationRequirements": {
+          "export": {
+            "dataRequirements": {
+              "serverDescription": "read",
+              "session": "none"
+            },
+            "protocol": {
+              "negotiatedVersions": [
+                "2024-11-05",
+                "2025-03-26",
+                "2025-06-18",
+                "2025-11-25"
+              ]
+            }
+          },
+          "validate": {
+            "dataRequirements": {
+              "serverDescription": "none",
+              "session": "none"
+            }
+          }
         }
       }
     ]
@@ -247,7 +263,7 @@ existing redaction behavior remains mandatory.
 
 ### 6.2 Artifact formats
 
-Artifact formats declare operations separately from serialization encodings:
+Artifact formats declare operation-scoped requirements separately from serialization encodings:
 
 ```ts
 type ArtifactOperation = "export" | "import" | "validate" | "view";
@@ -258,9 +274,17 @@ interface ArtifactFormatContribution {
   artifactVersion: string;
   mediaTypes: string[];
   encodings: string[];
-  operations: ArtifactOperation[];
+  operationRequirements: Partial<
+    Record<ArtifactOperation, ArtifactOperationRequirements>
+  >;
   optionsSchema?: JsonObject;
+}
+
+interface ArtifactOperationRequirements {
   dataRequirements: ArtifactDataRequirements;
+  protocol?: {
+    negotiatedVersions: string[];
+  };
 }
 ```
 
@@ -273,6 +297,13 @@ interface ArtifactDataRequirements {
   session: "none" | "read";
 }
 ```
+
+An operation exists when its key is present in `operationRequirements`; at least one key is
+required. Requirements are not shared across operations. For example, MCP Description export
+requires a fresh live server description and a compatible negotiated protocol version, while
+validation of an existing artifact needs neither a connection nor server data. Protocol versions
+are exact MCP date-version strings, not semantic-version ranges, and duplicate or empty lists are
+invalid.
 
 JSON and YAML are encodings, not artifact types. `mcpdesc-0.7` and the native Inspector session
 are different artifact formats. An extension package may contribute more than one format version,
@@ -367,11 +398,19 @@ The runner applies the plan in this order:
 4. load and select server configurations as declared;
 5. prepare authentication only when a connection is required;
 6. establish the MCP connection only when required;
-7. activate the extension lazily;
-8. invoke the handler with cancellation and timeout support;
-9. validate the result envelope;
-10. write through a host-owned output sink;
-11. disconnect and deactivate as appropriate.
+7. evaluate the selected operation's negotiated-protocol requirements, if any;
+8. collect the operation's declared data only after applicability succeeds;
+9. activate the extension lazily;
+10. invoke the handler with cancellation and timeout support;
+11. validate the result envelope;
+12. write through a host-owned output sink;
+13. disconnect and deactivate as appropriate.
+
+Protocol applicability is necessarily evaluated after connection because the negotiated version
+is an outcome of initialization. It runs before fresh discovery, extension activation, or handler
+execution. A connected operation with a protocol requirement but no negotiated version fails
+closed. Disconnected hosts may report a live operation as indeterminate, but offline operations
+without a protocol requirement remain available.
 
 This replaces the former binary `ParseResult` distinction between a connected invocation and a
 `shortCircuit` with explicit command and host plans. Phase 2 adds a sibling artifact plan/executor
@@ -530,6 +569,34 @@ host-owned UI/stderr output and never contaminate artifact stdout.
 The schema and mapping are version-specific modules. A shared collector is allowed; a shared
 "latest mcpdesc" mapper is not.
 
+#### Phase 3 follow-up architecture — negotiated protocol applicability
+
+MCP Description 0.7 export declares these supported **negotiated** MCP versions on its `export`
+operation:
+
+- `2024-11-05`
+- `2025-03-26`
+- `2025-06-18`
+- `2025-11-25`
+
+The host evaluates the version actually returned by the Inspector connection. It does not use the
+server's newest capability, an advertised maximum, or the configured protocol era as a proxy. A
+dual-era server can therefore export MCP Description 0.7 when the Inspector is configured to
+negotiate legacy `2025-11-25`, while the same server is incompatible when another connection
+negotiates modern `2026-07-28`.
+
+This is host preflight, not a replacement for format validation:
+
+- CLI connects, checks applicability, and rejects an unsupported or missing negotiated version
+  before fresh collection and handler activation.
+- Web derives availability from the same contribution requirements, keeps the export control
+  visible but disabled with an explanatory reason, and guards the callback against stale or direct
+  invocation.
+- The MCP Description mapper and authoritative schema still reject unsupported versions as defense
+  in depth if a host or future runtime bypasses preflight.
+- `validate` has no live protocol requirement because validating an existing artifact is an offline
+  operation; it remains independent from `export` requirements.
+
 ### 10.5 MCP Description 0.8
 
 Reserved canonical ID: `modelcontextprotocol.mcpdesc-0.8`.
@@ -628,6 +695,7 @@ core/extensions/
 │   ├── contributionRegistry.ts
 │   └── activationRegistry.ts       # Later activation phase
 ├── artifacts/
+│   ├── applicability.ts            # operation-scoped negotiated-protocol preflight
 │   ├── plan.ts                     # shared artifact-plan DTO
 │   ├── service.ts                  # format-handler registry + host-owned output dispatch
 │   └── serverDescriptionSnapshot.ts # Phase 3

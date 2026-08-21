@@ -13,7 +13,10 @@ import {
   buildCliArtifactPlan,
   buildCliArtifactPlanFromContribution,
 } from "../src/extensions/artifacts/plan.js";
-import { executeCliArtifactExport } from "../src/extensions/artifacts/execute.js";
+import {
+  assertCliArtifactApplicable,
+  executeCliArtifactExport,
+} from "../src/extensions/artifacts/execute.js";
 import {
   createCliSessionSnapshot,
   type CliSessionSnapshotContext,
@@ -187,10 +190,13 @@ describe("CLI artifact planning and snapshot adaptation", () => {
       artifactVersion: "1.0.0",
       mediaTypes: ["application/json"],
       encodings: ["json"],
-      operations: ["validate" as const],
-      dataRequirements: {
-        serverDescription: "none" as const,
-        session: "read" as const,
+      operationRequirements: {
+        validate: {
+          dataRequirements: {
+            serverDescription: "none" as const,
+            session: "read" as const,
+          },
+        },
       },
     };
     expect(() =>
@@ -208,7 +214,14 @@ describe("CLI artifact planning and snapshot adaptation", () => {
           extensionId: "example",
           contribution: {
             ...contribution,
-            operations: ["export"],
+            operationRequirements: {
+              export: {
+                dataRequirements: {
+                  serverDescription: "none",
+                  session: "read",
+                },
+              },
+            },
             mediaTypes: [],
           },
         },
@@ -229,10 +242,13 @@ describe("CLI artifact planning and snapshot adaptation", () => {
           artifactVersion: "1.0.0",
           mediaTypes: ["application/example+json", "application/example+yaml"],
           encodings: ["json", "yaml"],
-          operations: ["export"],
-          dataRequirements: {
-            serverDescription: "read",
-            session: "none",
+          operationRequirements: {
+            export: {
+              dataRequirements: {
+                serverDescription: "read",
+                session: "none",
+              },
+            },
           },
         },
       },
@@ -243,6 +259,17 @@ describe("CLI artifact planning and snapshot adaptation", () => {
       encoding: "yaml",
       mediaType: "application/example+yaml",
     });
+  });
+
+  it("preflights the negotiated protocol before artifact execution", () => {
+    const plan = buildCliArtifactPlan("mcpdesc-0.7", undefined, undefined);
+    expect(() => assertCliArtifactApplicable(plan, "2026-07-28")).toThrow(
+      /does not support negotiated MCP protocol version 2026-07-28/,
+    );
+    expect(() => assertCliArtifactApplicable(plan, undefined)).toThrow(
+      /no negotiated MCP protocol version/,
+    );
+    expect(() => assertCliArtifactApplicable(plan, "2025-11-25")).not.toThrow();
   });
 
   it("adapts result, NDJSON, and stream outcomes", () => {

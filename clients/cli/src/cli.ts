@@ -106,7 +106,10 @@ import {
   type CliServerLoadOptions,
 } from "./extensions/commands/plan.js";
 import { executeCommandPlan } from "./extensions/commands/execute.js";
-import { executeCliArtifactExport } from "./extensions/artifacts/execute.js";
+import {
+  assertCliArtifactApplicable,
+  executeCliArtifactExport,
+} from "./extensions/artifacts/execute.js";
 import {
   buildCliArtifactPlan,
   type CliArtifactConnectionPlan,
@@ -222,6 +225,13 @@ async function callMethod(
       serverSettings,
       { storedAuthOnly, autoOpenControl },
     );
+
+    if (artifactPlan !== undefined) {
+      assertCliArtifactApplicable(
+        artifactPlan,
+        inspectorClient.getProtocolVersion(),
+      );
+    }
 
     if (args === undefined) {
       if (artifactPlan === undefined) {

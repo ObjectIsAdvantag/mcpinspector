@@ -226,6 +226,25 @@ describe("ViewHeader", () => {
       expect(onExportDescription).toHaveBeenCalledWith("yaml");
     });
 
+    it("disables description export and explains protocol incompatibility", async () => {
+      const user = userEvent.setup();
+      const reason =
+        "MCP Description 0.7 does not support negotiated MCP protocol version 2026-07-28.";
+      renderWithMantine(
+        <ViewHeader
+          {...connectedProps}
+          descriptionExportDisabledReason={reason}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: "Export description",
+      });
+      expect(button).toBeDisabled();
+      await user.hover(button.parentElement!);
+      expect(await screen.findByText(reason)).toBeInTheDocument();
+    });
+
     it("renders all available tabs", () => {
       renderWithMantine(<ViewHeader {...connectedProps} />);
       expect(screen.getAllByText("Resources").length).toBeGreaterThan(0);

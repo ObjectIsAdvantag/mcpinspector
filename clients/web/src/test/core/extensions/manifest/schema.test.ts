@@ -102,6 +102,55 @@ describe("InspectorExtensionManifestSchema", () => {
     );
   });
 
+  it("requires at least one operation-scoped artifact requirement", () => {
+    const manifest = structuredClone(VALID_MANIFEST);
+    manifest.contributes.artifactFormats![0]!.operationRequirements = {};
+    const result = InspectorExtensionManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          message: "At least one artifact operation is required",
+          path: ["contributes", "artifactFormats", 0, "operationRequirements"],
+        }),
+      );
+    }
+  });
+
+  it("rejects empty, duplicate, and unknown protocol requirements", () => {
+    const empty = structuredClone(VALID_MANIFEST);
+    empty.contributes.artifactFormats![0]!.operationRequirements.export!.protocol =
+      { negotiatedVersions: [] };
+    expect(InspectorExtensionManifestSchema.safeParse(empty).success).toBe(
+      false,
+    );
+
+    const duplicate = structuredClone(VALID_MANIFEST);
+    duplicate.contributes.artifactFormats![0]!.operationRequirements.export!.protocol =
+      { negotiatedVersions: ["2025-11-25", "2025-11-25"] };
+    const duplicateResult =
+      InspectorExtensionManifestSchema.safeParse(duplicate);
+    expect(duplicateResult.success).toBe(false);
+    if (!duplicateResult.success) {
+      expect(duplicateResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          message: "Negotiated MCP protocol versions must be unique",
+        }),
+      );
+    }
+
+    const unknown = structuredClone(VALID_MANIFEST) as Record<string, unknown>;
+    const contributes = unknown.contributes as {
+      artifactFormats: Array<{
+        operationRequirements: { export: Record<string, unknown> };
+      }>;
+    };
+    contributes.artifactFormats[0]!.operationRequirements.export.future = true;
+    expect(InspectorExtensionManifestSchema.safeParse(unknown).success).toBe(
+      false,
+    );
+  });
+
   it("rejects duplicate contribution ids", () => {
     const manifest = structuredClone(VALID_MANIFEST);
     manifest.contributes.commands!.push({

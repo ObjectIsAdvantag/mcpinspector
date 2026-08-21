@@ -51,7 +51,8 @@ export function buildCliArtifactPlanFromContribution(
       `Artifact format ${selector} does not support encoding ${selectedEncoding ?? "(none)"}. Supported encodings: ${contribution.encodings.join(", ")}.`,
     );
   }
-  if (!contribution.operations.includes("export")) {
+  const exportRequirements = contribution.operationRequirements.export;
+  if (exportRequirements === undefined) {
     throw new Error(`Artifact format ${selector} does not support export.`);
   }
   const mediaType = resolveArtifactMediaType(contribution, selectedEncoding);
@@ -67,7 +68,8 @@ export function buildCliArtifactPlanFromContribution(
     operation: "export",
     encoding: selectedEncoding,
     mediaType,
-    dataRequirements: contribution.dataRequirements,
+    dataRequirements: exportRequirements.dataRequirements,
+    protocolRequirements: exportRequirements.protocol,
     options: {},
     output:
       outputPath === undefined || outputPath === "-"

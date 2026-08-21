@@ -5,6 +5,7 @@ export * from "./api/json.js";
 export * from "./api/serverDescription.js";
 export * from "./api/sessions.js";
 export * from "./artifacts/plan.js";
+export * from "./artifacts/applicability.js";
 export * from "./artifacts/service.js";
 export * from "./commands/plan.js";
 export * from "./builtin/catalog.js";
