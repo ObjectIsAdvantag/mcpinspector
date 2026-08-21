@@ -23,6 +23,9 @@ It will remain unavailable until an authoritative 0.8 schema exists.
 2. Select **Export description** in the connected-server header.
 3. Select **JSON** or **YAML**.
 
+The export control remains visible but is disabled with an explanation when the connection
+negotiated an MCP protocol version that MCP Description 0.7 does not support.
+
 The browser downloads
 `inspector-description-<server>-<timestamp>.json` or
 `inspector-description-<server>-<timestamp>.yaml`. The document is collected and validated before
@@ -93,7 +96,11 @@ Export fails before writing when, among other cases:
 - a remote transport URL is invalid or does not use HTTP(S).
 
 An unsupported negotiated protocol version is not omitted or coerced to a known version. The
-export fails rather than claiming compatibility the server did not negotiate.
+host rejects export before fresh discovery or artifact-handler activation rather than claiming
+compatibility the server did not negotiate. The embedded schema repeats the check as defense in
+depth. Compatibility uses the version actually negotiated by this Inspector connection—not the
+newest version the server could support. A dual-era server negotiated as legacy `2025-11-25` is
+therefore exportable, while the same server negotiated as modern `2026-07-28` is not.
 
 MCP server instructions have no 0.7 destination field. When present, they are omitted and reported
 as an informational diagnostic.

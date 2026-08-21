@@ -47,6 +47,7 @@ interface ConnectedProps {
   onTabChange: (tab: string) => void;
   onExportSession: () => void;
   onExportDescription: (encoding: McpDescription07Encoding) => void;
+  descriptionExportDisabledReason?: string;
   onDisconnect: () => void;
   onToggleTheme: () => void;
   onOpenClientSettings: () => void;
@@ -296,6 +297,9 @@ export function ViewHeader(props: ViewHeaderProps) {
   const handleExportDescription = props.connected
     ? props.onExportDescription
     : undefined;
+  const descriptionExportDisabledReason = props.connected
+    ? props.descriptionExportDisabledReason
+    : undefined;
   const handleDisconnect = props.connected ? props.onDisconnect : undefined;
 
   // The glow only arms once the connection has settled (GLOW_GRACE_MS after
@@ -438,9 +442,20 @@ export function ViewHeader(props: ViewHeaderProps) {
                 </Tooltip>
                 <Menu>
                   <Menu.Target>
-                    <ExportDescriptionIcon>
-                      <MdDescription size={20} />
-                    </ExportDescriptionIcon>
+                    <Tooltip
+                      label={descriptionExportDisabledReason}
+                      disabled={descriptionExportDisabledReason === undefined}
+                    >
+                      <Box component="span">
+                        <ExportDescriptionIcon
+                          disabled={
+                            descriptionExportDisabledReason !== undefined
+                          }
+                        >
+                          <MdDescription size={20} />
+                        </ExportDescriptionIcon>
+                      </Box>
+                    </Tooltip>
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Label>Export Description</Menu.Label>

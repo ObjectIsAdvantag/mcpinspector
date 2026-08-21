@@ -515,6 +515,8 @@ export interface InspectorViewProps {
   onExportSession: () => void;
   /** Discover and download an MCP Description 0.7 artifact. */
   onExportDescription: (encoding: McpDescription07Encoding) => void;
+  /** Why MCP Description export is unavailable for the live connection. */
+  descriptionExportDisabledReason?: string;
   onDisconnect: () => void;
 
   // Server list actions.
@@ -686,6 +688,7 @@ export function InspectorView({
   onToggleConnection,
   onExportSession,
   onExportDescription,
+  descriptionExportDisabledReason,
   onDisconnect,
   onServerAdd,
   onServerImportConfig,
@@ -1339,6 +1342,7 @@ export function InspectorView({
             onTabChange={onActiveTabChange}
             onExportSession={onExportSession}
             onExportDescription={onExportDescription}
+            descriptionExportDisabledReason={descriptionExportDisabledReason}
             onDisconnect={onDisconnect}
             onToggleTheme={onToggleTheme}
             onOpenClientSettings={onOpenClientSettings}

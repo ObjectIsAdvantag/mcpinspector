@@ -1,5 +1,6 @@
 import type { ExtensionManifestCandidate } from "../registry/contributionRegistry.js";
 import type { InspectorExtensionManifest } from "../manifest/schema.js";
+import type { ArtifactOperationRequirements } from "../api/artifacts.js";
 import {
   INSPECTOR_SESSION_ARTIFACT_VERSION,
   INSPECTOR_SESSION_FORMAT_ID,
@@ -19,6 +20,21 @@ export const SERVERS_LIST_COMMAND_ID = "modelcontextprotocol.servers.list";
 export const SERVERS_LIST_COMMAND_ALIAS = "servers/list";
 export const SERVERS_SHOW_COMMAND_ID = "modelcontextprotocol.servers.show";
 export const SERVERS_SHOW_COMMAND_ALIAS = "servers/show";
+
+export const MCPDESC_0_7_EXPORT_REQUIREMENTS: ArtifactOperationRequirements = {
+  dataRequirements: {
+    serverDescription: "read",
+    session: "none",
+  },
+  protocol: {
+    negotiatedVersions: [
+      "2024-11-05",
+      "2025-03-26",
+      "2025-06-18",
+      "2025-11-25",
+    ],
+  },
+};
 
 export const INSPECTOR_SESSION_BUILTIN_MANIFEST: InspectorExtensionManifest = {
   id: "modelcontextprotocol.inspector-session",
@@ -48,10 +64,19 @@ export const INSPECTOR_SESSION_BUILTIN_MANIFEST: InspectorExtensionManifest = {
         artifactVersion: INSPECTOR_SESSION_ARTIFACT_VERSION,
         mediaTypes: [INSPECTOR_SESSION_MEDIA_TYPE],
         encodings: ["json"],
-        operations: ["export", "validate"],
-        dataRequirements: {
-          serverDescription: "none",
-          session: "read",
+        operationRequirements: {
+          export: {
+            dataRequirements: {
+              serverDescription: "none",
+              session: "read",
+            },
+          },
+          validate: {
+            dataRequirements: {
+              serverDescription: "none",
+              session: "none",
+            },
+          },
         },
       },
     ],
@@ -86,10 +111,16 @@ export const MCPDESC_0_7_BUILTIN_MANIFEST: InspectorExtensionManifest = {
         artifactVersion: MCPDESC_0_7_ARTIFACT_VERSION,
         mediaTypes: [MCPDESC_0_7_JSON_MEDIA_TYPE, MCPDESC_0_7_YAML_MEDIA_TYPE],
         encodings: ["json", "yaml"],
-        operations: ["export", "validate"],
-        dataRequirements: {
-          serverDescription: "read",
-          session: "none",
+        operationRequirements: {
+          export: {
+            ...MCPDESC_0_7_EXPORT_REQUIREMENTS,
+          },
+          validate: {
+            dataRequirements: {
+              serverDescription: "none",
+              session: "none",
+            },
+          },
         },
       },
     ],

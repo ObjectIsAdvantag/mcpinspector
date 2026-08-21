@@ -42,10 +42,22 @@ export const VALID_MANIFEST: InspectorExtensionManifest = {
         artifactVersion: "0.7",
         mediaTypes: ["application/json", "application/yaml"],
         encodings: ["json", "yaml"],
-        operations: ["export", "validate"],
-        dataRequirements: {
-          serverDescription: "read",
-          session: "none",
+        operationRequirements: {
+          export: {
+            dataRequirements: {
+              serverDescription: "read",
+              session: "none",
+            },
+            protocol: {
+              negotiatedVersions: ["2025-06-18", "2025-11-25"],
+            },
+          },
+          validate: {
+            dataRequirements: {
+              serverDescription: "none",
+              session: "none",
+            },
+          },
         },
       },
     ],
@@ -97,10 +109,13 @@ export const PLANNED_MCPDESC_08_MANIFEST: InspectorExtensionManifest = {
         artifactVersion: "0.8",
         mediaTypes: ["application/json"],
         encodings: ["json"],
-        operations: ["export"],
-        dataRequirements: {
-          serverDescription: "read",
-          session: "none",
+        operationRequirements: {
+          export: {
+            dataRequirements: {
+              serverDescription: "read",
+              session: "none",
+            },
+          },
         },
       },
     ],

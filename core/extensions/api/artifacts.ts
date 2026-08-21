@@ -19,6 +19,16 @@ export interface ArtifactDataRequirements {
   session: ArtifactDataAccess;
 }
 
+export interface ArtifactProtocolRequirements {
+  /** Exact MCP protocol versions negotiated by the live connection. */
+  negotiatedVersions: readonly string[];
+}
+
+export interface ArtifactOperationRequirements {
+  dataRequirements: ArtifactDataRequirements;
+  protocol?: ArtifactProtocolRequirements;
+}
+
 export interface ArtifactFormatContribution {
   id: string;
   displayName: string;
@@ -29,9 +39,11 @@ export interface ArtifactFormatContribution {
    */
   mediaTypes: string[];
   encodings: string[];
-  operations: ArtifactOperation[];
+  /** Requirements are scoped to each operation the format contributes. */
+  operationRequirements: Partial<
+    Record<ArtifactOperation, ArtifactOperationRequirements>
+  >;
   optionsSchema?: ExtensionJsonObject;
-  dataRequirements: ArtifactDataRequirements;
 }
 
 /** Resolve the media type paired with one declared serialization encoding. */

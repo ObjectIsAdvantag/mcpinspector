@@ -84,14 +84,22 @@ const ArtifactFormatContributionSchema: z.ZodType<ArtifactFormatContribution> =
           (encodings) => new Set(encodings).size === encodings.length,
           "Artifact encodings must be unique",
         ),
-      operations: z.array(ArtifactOperationSchema).min(1),
-      optionsSchema: ExtensionJsonObjectSchema.optional(),
-      dataRequirements: z
+      operationRequirements: z
         .object({
-          serverDescription: ArtifactDataAccessSchema,
-          session: ArtifactDataAccessSchema,
+          export: artifactOperationRequirementsSchema().optional(),
+          import: artifactOperationRequirementsSchema().optional(),
+          validate: artifactOperationRequirementsSchema().optional(),
+          view: artifactOperationRequirementsSchema().optional(),
         })
-        .strict(),
+        .strict()
+        .refine(
+          (requirements) =>
+            ArtifactOperationSchema.options.some(
+              (operation) => requirements[operation] !== undefined,
+            ),
+          "At least one artifact operation is required",
+        ),
+      optionsSchema: ExtensionJsonObjectSchema.optional(),
     })
     .strict()
     .refine(
@@ -101,6 +109,31 @@ const ArtifactFormatContributionSchema: z.ZodType<ArtifactFormatContribution> =
         path: ["mediaTypes"],
       },
     );
+
+function artifactOperationRequirementsSchema() {
+  return z
+    .object({
+      dataRequirements: z
+        .object({
+          serverDescription: ArtifactDataAccessSchema,
+          session: ArtifactDataAccessSchema,
+        })
+        .strict(),
+      protocol: z
+        .object({
+          negotiatedVersions: z
+            .array(z.string().trim().min(1))
+            .min(1)
+            .refine(
+              (versions) => new Set(versions).size === versions.length,
+              "Negotiated MCP protocol versions must be unique",
+            ),
+        })
+        .strict()
+        .optional(),
+    })
+    .strict();
+}
 
 const ActivationEventSchema = z
   .string()
