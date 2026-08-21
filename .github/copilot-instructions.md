@@ -8,7 +8,10 @@ This is the ObjectIsAdvantag experimental fork. Direct implementation and pull r
 allowed; do not apply the inherited upstream board, issue, milestone, or PR authorization workflow
 to ordinary fork work or mutate upstream GitHub state unless explicitly requested. For extension
 work, follow [the extension architecture specification](../specification/v2_extension_architecture.md)
-and [the reusable implementation prompt](prompts/implement-extension-architecture.prompt.md).
+and [the reusable implementation prompt](prompts/implement-extension-architecture.prompt.md). Follow
+[the synchronization runbook](../docs/fork-extension-sync.md): `upstream/*` is read-only,
+`origin/v2/main` mirrors reference `v2/main`, and portable extension changes stay separable from
+fork governance and synchronization accommodations.
 
 The Inspector ships as one package with three clients (**Web**, **CLI**, **TUI**) over a shared `core/`, consumed via the `@inspector/core` build-time alias. v2 is **not** an npm workspace: the root and each `clients/*` keep their own `package.json` and `node_modules`.
 

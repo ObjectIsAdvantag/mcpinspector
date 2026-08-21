@@ -59,6 +59,7 @@ Task-oriented guides live under [`docs/`](./docs):
 - [Reviewing an MCP App](./docs/mcp-app-review.md) — the CLI-first → one-shot-web recipe for automated App-tool review: `--app-info` probe → deep-link navigate → rendered widget, plus OAuth handoff and proxy support.
 - [Record and replay native Inspector sessions](./docs/native-session-record-replay.md) — Web and CLI capture, the versioned JSON schema, redaction, safe sharing, and disconnected read-only Web replay without the MCP server.
 - [Export MCP Description 0.7](./docs/mcp-description-export.md) — fresh Web/CLI discovery, JSON/YAML output, schema compatibility, diagnostics, and safe-minimum transport disclosure.
+- [Keeping the extension fork synchronized](./docs/fork-extension-sync.md) — reference/fork branch roles, synchronization and conflict policy, portable upstream slices, and an upstream feature-request draft.
 - [Launcher and config consolidation](./docs/launcher-config-consolidation-plan.md) — why the launcher runs a client in-process rather than spawning it, and how the shared config processor fits in.
 
 ## Setup

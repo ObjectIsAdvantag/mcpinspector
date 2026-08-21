@@ -12,7 +12,10 @@ GitHub state unless explicitly requested.
 For extension work, [the extension architecture specification](specification/v2_extension_architecture.md)
 is the source of truth. Keep all repository code and documentation in English, and use
 [the reusable implementation prompt](.github/prompts/implement-extension-architecture.prompt.md)
-for phase or slice work.
+for phase or slice work. Keep the fork aligned with the reference implementation using
+[the extension synchronization runbook](docs/fork-extension-sync.md); `upstream/*` is read-only,
+`origin/v2/main` mirrors reference `v2/main`, and extension development integrates through
+`v2/extensions` plus the rewriteable `v2/proposal/extension-architecture` patch stack.
 
 ## Project Structure
 
