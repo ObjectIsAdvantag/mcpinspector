@@ -42,8 +42,12 @@ import type {
 import { isTerminalStatus } from "@inspector/core/mcp/types.js";
 import { isAppTool } from "@inspector/core/mcp/apps.js";
 import { TASKS_EXTENSION_KEY } from "@inspector/core/mcp/modernTaskSchemas.js";
-import type { McpDescription07Encoding } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
 import { ViewHeader } from "../../groups/ViewHeader/ViewHeader";
+import type {
+  WebServerDescriptionDisabledReasons,
+  WebServerDescriptionEncoding,
+  WebServerDescriptionFormat,
+} from "../../../lib/exportServerDescriptionArtifact";
 import { VersionBadge } from "../../elements/VersionBadge/VersionBadge";
 import { CopyrightBadge } from "../../elements/CopyrightBadge/CopyrightBadge";
 import type { ListPaginationControlsProps } from "../../elements/ListPaginationControls/ListPaginationControls";
@@ -513,10 +517,13 @@ export interface InspectorViewProps {
   onToggleConnection: (id: string) => void;
   /** Download a native snapshot of the active live connection. */
   onExportSession: () => void;
-  /** Discover and download an MCP Description 0.7 artifact. */
-  onExportDescription: (encoding: McpDescription07Encoding) => void;
-  /** Why MCP Description export is unavailable for the live connection. */
-  descriptionExportDisabledReason?: string;
+  /** Discover and download an MCP Description artifact. */
+  onExportDescription: (
+    format: WebServerDescriptionFormat,
+    encoding: WebServerDescriptionEncoding,
+  ) => void;
+  /** Why each MCP Description format is unavailable for the live connection. */
+  descriptionExportDisabledReasons?: WebServerDescriptionDisabledReasons;
   onDisconnect: () => void;
 
   // Server list actions.
@@ -688,7 +695,7 @@ export function InspectorView({
   onToggleConnection,
   onExportSession,
   onExportDescription,
-  descriptionExportDisabledReason,
+  descriptionExportDisabledReasons,
   onDisconnect,
   onServerAdd,
   onServerImportConfig,
@@ -1342,7 +1349,7 @@ export function InspectorView({
             onTabChange={onActiveTabChange}
             onExportSession={onExportSession}
             onExportDescription={onExportDescription}
-            descriptionExportDisabledReason={descriptionExportDisabledReason}
+            descriptionExportDisabledReasons={descriptionExportDisabledReasons}
             onDisconnect={onDisconnect}
             onToggleTheme={onToggleTheme}
             onOpenClientSettings={onOpenClientSettings}

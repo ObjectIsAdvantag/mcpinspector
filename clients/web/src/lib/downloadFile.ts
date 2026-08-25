@@ -77,6 +77,8 @@ export function isHttpUrl(url: string): URL | null {
 export type ExportKind =
   | "session"
   | "description"
+  | "description-0.7"
+  | "description-0.8.0-draft.1"
   | "protocol"
   | "protocol-pinned"
   | "protocol-unpinned"

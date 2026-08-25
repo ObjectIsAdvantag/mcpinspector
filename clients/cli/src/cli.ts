@@ -748,7 +748,7 @@ export function createCliPlan(argv?: string[]): CliPlan {
     )
     .option(
       "--artifact-plugin <format>",
-      "Export an artifact (mcpdesc-0.7 performs fresh discovery; inspector-session records a connected --method invocation).",
+      "Export an artifact (MCP Description formats perform fresh discovery; inspector-session records a connected --method invocation).",
     )
     .option(
       "--encoding <encoding>",

@@ -21,6 +21,7 @@ import { runCli } from "./helpers/cli-runner.js";
 import { expectCliSuccess } from "./helpers/assertions.js";
 import { INSPECTOR_SESSION_FORMAT_ID } from "@inspector/core/extensions/api/sessions.js";
 import { MCPDESC_0_7_FORMAT_ID } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
+import { MCPDESC_0_8_DRAFT_1_FORMAT_ID } from "@inspector/core/extensions/builtin/mcpdesc-0.8-draft.1/constants.js";
 
 const argv = (...args: string[]): string[] => [
   "node",
@@ -195,6 +196,35 @@ describe("CLI command plan creation", () => {
       throw new Error("Expected an artifact plan");
     }
     expect(plan.command).not.toHaveProperty("methodArgs");
+  });
+
+  it("plans Draft 1 for every protocol revision supported by the format", () => {
+    expect(
+      createCliPlan(
+        argv(
+          "fake-server",
+          "--artifact-plugin",
+          "mcpdesc-0.8-draft.1",
+          "--encoding",
+          "json",
+        ),
+      ),
+    ).toMatchObject({
+      kind: "artifact-command",
+      artifact: {
+        formatId: MCPDESC_0_8_DRAFT_1_FORMAT_ID,
+        encoding: "json",
+        protocolRequirements: {
+          negotiatedVersions: [
+            "2024-11-05",
+            "2025-03-26",
+            "2025-06-18",
+            "2025-11-25",
+            "2026-07-28",
+          ],
+        },
+      },
+    });
   });
 
   it("rejects command or method selectors for primary mcpdesc export", () => {

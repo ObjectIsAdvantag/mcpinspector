@@ -29,8 +29,10 @@ import type {
   Tool,
 } from "@modelcontextprotocol/client";
 import { InspectorClient } from "@inspector/core/mcp/index.js";
-import type { McpDescription07Encoding } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
-import { MCPDESC_0_7_EXPORT_REQUIREMENTS } from "@inspector/core/extensions/builtin/manifests.js";
+import {
+  MCPDESC_0_7_EXPORT_REQUIREMENTS,
+  MCPDESC_0_8_DRAFT_1_EXPORT_REQUIREMENTS,
+} from "@inspector/core/extensions/builtin/manifests.js";
 import { collectServerDescriptionSnapshot } from "@inspector/core/extensions/builtin/serverDescriptionSnapshot.js";
 import { evaluateArtifactOperationApplicability } from "@inspector/core/extensions/artifacts/applicability.js";
 import { toRecord } from "@inspector/core/json/jsonUtils.js";
@@ -3988,8 +3990,8 @@ function LiveInspectorApp({
   ]);
 
   const descriptionExportApplicability = useMemo(
-    () =>
-      evaluateArtifactOperationApplicability(
+    () => ({
+      "mcpdesc-0.7": evaluateArtifactOperationApplicability(
         "MCP Description 0.7",
         MCPDESC_0_7_EXPORT_REQUIREMENTS,
         {
@@ -3997,18 +3999,45 @@ function LiveInspectorApp({
           negotiatedProtocolVersion: protocolVersion,
         },
       ),
+      "mcpdesc-0.8-draft.1": evaluateArtifactOperationApplicability(
+        "MCP Description 0.8.0 Draft 1",
+        MCPDESC_0_8_DRAFT_1_EXPORT_REQUIREMENTS,
+        {
+          connected: connectionStatus === "connected",
+          negotiatedProtocolVersion: protocolVersion,
+        },
+      ),
+    }),
     [connectionStatus, protocolVersion],
   );
-  const descriptionExportDisabledReason =
-    descriptionExportApplicability.status === "applicable"
-      ? undefined
-      : descriptionExportApplicability.message;
+  const descriptionExportDisabledReasons = useMemo(
+    () => ({
+      ...(descriptionExportApplicability["mcpdesc-0.7"].status === "applicable"
+        ? {}
+        : {
+            "mcpdesc-0.7":
+              descriptionExportApplicability["mcpdesc-0.7"].message,
+          }),
+      ...(descriptionExportApplicability["mcpdesc-0.8-draft.1"].status ===
+      "applicable"
+        ? {}
+        : {
+            "mcpdesc-0.8-draft.1":
+              descriptionExportApplicability["mcpdesc-0.8-draft.1"].message,
+          }),
+    }),
+    [descriptionExportApplicability],
+  );
 
   const onExportDescription = useCallback(
-    (encoding: McpDescription07Encoding) => {
+    (
+      format: Parameters<typeof exportWebServerDescriptionArtifact>[1],
+      encoding: Parameters<typeof exportWebServerDescriptionArtifact>[2],
+    ) => {
       void (async () => {
-        if (descriptionExportApplicability.status !== "applicable") {
-          throw new Error(descriptionExportApplicability.message);
+        const applicability = descriptionExportApplicability[format];
+        if (applicability.status !== "applicable") {
+          throw new Error(applicability.message);
         }
         const server = servers.find(({ id }) => id === activeServerId);
         if (!server || !inspectorClient) {
@@ -4023,15 +4052,15 @@ function LiveInspectorApp({
         });
         const artifact = await exportWebServerDescriptionArtifact(
           snapshot,
+          format,
           encoding,
         );
+        const exportKind =
+          format === "mcpdesc-0.7"
+            ? "description-0.7"
+            : "description-0.8.0-draft.1";
         downloadBlob(
-          buildExportFilename(
-            "description",
-            activeServerId,
-            new Date(),
-            encoding,
-          ),
+          buildExportFilename(exportKind, activeServerId, new Date(), encoding),
           new Blob([artifact.content], { type: artifact.mediaType }),
         );
 
@@ -4675,7 +4704,7 @@ function LiveInspectorApp({
           }}
           onExportSession={onExportSession}
           onExportDescription={onExportDescription}
-          descriptionExportDisabledReason={descriptionExportDisabledReason}
+          descriptionExportDisabledReasons={descriptionExportDisabledReasons}
           onDisconnect={() => {
             void onDisconnect();
           }}

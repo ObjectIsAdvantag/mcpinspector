@@ -28,6 +28,11 @@ import {
   MCPDESC_0_7_FORMAT_ID,
 } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
 import { validateMcpDescription07Document } from "@inspector/core/extensions/builtin/mcpdesc-0.7/validation.js";
+import {
+  MCPDESC_0_8_DRAFT_1_ARTIFACT_VERSION,
+  MCPDESC_0_8_DRAFT_1_FORMAT_ID,
+} from "@inspector/core/extensions/builtin/mcpdesc-0.8-draft.1/constants.js";
+import { validateMcpDescription08Draft1Document } from "@inspector/core/extensions/builtin/mcpdesc-0.8-draft.1/validation.js";
 
 const SECRET_CANARY = "artifact-secret-canary";
 const tempDirs: string[] = [];
@@ -151,6 +156,50 @@ describe("CLI MCP Description 0.7 artifacts", () => {
     const document: unknown = parse(readFileSync(outputPath, "utf8"));
     expect(validateMcpDescription07Document(document)).toEqual([]);
     expect(document).toMatchObject({ mcpdesc: MCPDESC_0_7_ARTIFACT_VERSION });
+  });
+});
+
+describe("CLI MCP Description 0.8.0 Draft 1 artifacts", () => {
+  it("exports a fresh valid Draft 1 description without requiring --method", async () => {
+    const { command, args } = getTestMcpServerCommand();
+    const result = await runCli([
+      command,
+      ...args,
+      "--artifact-plugin",
+      "mcpdesc-0.8-draft.1",
+      "--output",
+      "-",
+    ]);
+
+    expectCliSuccess(result);
+    const document: unknown = JSON.parse(result.stdout);
+    expect(document).toMatchObject({
+      mcpdesc: "0.8.0",
+      protocolVersions: [expect.any(String)],
+      info: { name: expect.any(String), version: expect.any(String) },
+      transports: [{ type: "stdio", command }],
+      tools: expect.any(Array),
+    });
+    expect(
+      validateMcpDescription08Draft1Document(document).some(
+        ({ severity }) => severity === "error",
+      ),
+    ).toBe(false);
+    expect(result.stdout.trim().split("\n")[0]).toBe("{");
+  });
+
+  it("resolves the canonical format id and artifact version", () => {
+    const plan = buildCliArtifactPlan(
+      MCPDESC_0_8_DRAFT_1_FORMAT_ID,
+      "yaml",
+      undefined,
+    );
+    expect(plan).toMatchObject({
+      formatId: MCPDESC_0_8_DRAFT_1_FORMAT_ID,
+      artifactVersion: MCPDESC_0_8_DRAFT_1_ARTIFACT_VERSION,
+      encoding: "yaml",
+    });
+    expect(() => assertCliArtifactApplicable(plan, "2026-07-28")).not.toThrow();
   });
 });
 

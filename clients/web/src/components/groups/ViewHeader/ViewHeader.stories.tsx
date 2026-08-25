@@ -51,8 +51,15 @@ export const Connected: Story = {
       canvas.getByRole("button", { name: "Export description" }),
     );
     const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await page.findByRole("menuitem", { name: "YAML" }));
-    await expect(args.onExportDescription).toHaveBeenCalledWith("yaml");
+    await userEvent.click(
+      await page.findByRole("menuitem", {
+        name: "MCP Description 0.7 YAML",
+      }),
+    );
+    await expect(args.onExportDescription).toHaveBeenCalledWith(
+      "mcpdesc-0.7",
+      "yaml",
+    );
     await waitFor(() => expect(page.queryByRole("menu")).toBeNull());
   },
 };

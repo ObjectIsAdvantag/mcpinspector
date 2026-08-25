@@ -12,6 +12,11 @@ import {
   MCPDESC_0_7_YAML_MEDIA_TYPE,
 } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
 import {
+  MCPDESC_0_8_DRAFT_1_FORMAT_ID,
+  MCPDESC_0_8_DRAFT_1_JSON_MEDIA_TYPE,
+  MCPDESC_0_8_DRAFT_1_YAML_MEDIA_TYPE,
+} from "@inspector/core/extensions/builtin/mcpdesc-0.8-draft.1/constants.js";
+import {
   INCOMPATIBLE_MANIFEST,
   INVALID_MANIFEST,
   VALID_MANIFEST,
@@ -243,6 +248,41 @@ describe("createStaticContributionCatalog", () => {
           },
         }),
       }),
+      expect.objectContaining({
+        extensionId: MCPDESC_0_8_DRAFT_1_FORMAT_ID,
+        contribution: expect.objectContaining({
+          id: MCPDESC_0_8_DRAFT_1_FORMAT_ID,
+          artifactVersion: "0.8.0-draft.1",
+          encodings: ["json", "yaml"],
+          mediaTypes: [
+            MCPDESC_0_8_DRAFT_1_JSON_MEDIA_TYPE,
+            MCPDESC_0_8_DRAFT_1_YAML_MEDIA_TYPE,
+          ],
+          operationRequirements: {
+            export: {
+              dataRequirements: {
+                serverDescription: "read",
+                session: "none",
+              },
+              protocol: {
+                negotiatedVersions: [
+                  "2024-11-05",
+                  "2025-03-26",
+                  "2025-06-18",
+                  "2025-11-25",
+                  "2026-07-28",
+                ],
+              },
+            },
+            validate: {
+              dataRequirements: {
+                serverDescription: "none",
+                session: "none",
+              },
+            },
+          },
+        }),
+      }),
     ]);
     expect(
       resolveArtifactContribution(catalog, INSPECTOR_SESSION_FORMAT_ID),
@@ -250,6 +290,9 @@ describe("createStaticContributionCatalog", () => {
     expect(resolveArtifactContribution(catalog, MCPDESC_0_7_FORMAT_ID)).toBe(
       catalog.artifactFormats[1],
     );
+    expect(
+      resolveArtifactContribution(catalog, MCPDESC_0_8_DRAFT_1_FORMAT_ID),
+    ).toBe(catalog.artifactFormats[2]);
     expect(
       resolveArtifactContribution(catalog, "modelcontextprotocol.mcpdesc-0.8"),
     ).toBeUndefined();

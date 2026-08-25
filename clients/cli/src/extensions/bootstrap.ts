@@ -9,6 +9,7 @@ import type { CommandContribution } from "@inspector/core/extensions/api/command
 import type { ArtifactFormatContribution } from "@inspector/core/extensions/api/artifacts.js";
 import { INSPECTOR_SESSION_FORMAT_ID } from "@inspector/core/extensions/api/sessions.js";
 import { MCPDESC_0_7_FORMAT_ID } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
+import { MCPDESC_0_8_DRAFT_1_FORMAT_ID } from "@inspector/core/extensions/builtin/mcpdesc-0.8-draft.1/constants.js";
 import { readInspectorVersion } from "@inspector/core/node/version.js";
 
 export const CLI_EXTENSION_API_VERSION = "0.1.0";
@@ -38,6 +39,8 @@ export const CLI_ARTIFACT_SELECTORS = [
   INSPECTOR_SESSION_FORMAT_ID,
   "mcpdesc-0.7",
   MCPDESC_0_7_FORMAT_ID,
+  "mcpdesc-0.8-draft.1",
+  MCPDESC_0_8_DRAFT_1_FORMAT_ID,
 ] as const;
 
 /** Resolve a canonical built-in command id or short selector. */
@@ -63,7 +66,9 @@ export function resolveCliArtifact(
       ? INSPECTOR_SESSION_FORMAT_ID
       : selector === "mcpdesc-0.7"
         ? MCPDESC_0_7_FORMAT_ID
-        : selector;
+        : selector === "mcpdesc-0.8-draft.1"
+          ? MCPDESC_0_8_DRAFT_1_FORMAT_ID
+          : selector;
   const registered = resolveArtifactContribution(
     CLI_BUILTIN_CONTRIBUTION_CATALOG,
     formatId,

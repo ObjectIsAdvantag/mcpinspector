@@ -1,34 +1,32 @@
-# Export MCP Description 0.7
+# Export MCP Description
 
 The Inspector can discover a connected MCP server and export an
-[MCP Description](https://developer.cisco.com/mcp-description/schema/0.7.0) document. This is a
-fresh description of the server, not a recording of Inspector activity.
+[MCP Description](https://mcpdesc.org/) document. This is a fresh description of the server, not a
+recording of Inspector activity. Stable 0.7 and the immutable 0.8.0 Draft 1 interoperability
+snapshot are separate artifact formats:
 
-Only MCP Description 0.7 is currently available:
+| Format | Format ID | Artifact version | Supported negotiated MCP revisions |
+| --- | --- | --- | --- |
+| MCP Description 0.7 (stable) | `modelcontextprotocol.mcpdesc-0.7` | `0.7.0` | `2024-11-05`, `2025-03-26`, `2025-06-18`, `2025-11-25` |
+| MCP Description 0.8.0 Draft 1 | `modelcontextprotocol.mcpdesc-0.8.0-draft.1` | `0.8.0-draft.1` | The four revisions above plus `2026-07-28` |
 
-| Property | Value |
-| --- | --- |
-| Format ID | `modelcontextprotocol.mcpdesc-0.7` |
-| Artifact version | `0.7.0` |
-| JSON media type | `application/vnd.modelcontextprotocol.mcp-description+json` |
-| YAML media type | `application/vnd.modelcontextprotocol.mcp-description+yaml` |
-| Encodings | JSON, YAML |
-
-The `modelcontextprotocol.mcpdesc-0.8` identity is reserved but is not registered or advertised.
-It will remain unavailable until an authoritative 0.8 schema exists.
+Both support JSON and YAML with media types
+`application/vnd.modelcontextprotocol.mcp-description+json` and
+`application/vnd.modelcontextprotocol.mcp-description+yaml`. The stable 0.8 identity
+`modelcontextprotocol.mcpdesc-0.8` remains reserved.
 
 ## Export from the Web client
 
 1. Connect to an MCP server.
 2. Select **Export description** in the connected-server header.
-3. Select **JSON** or **YAML**.
+3. Under the required format, select **JSON** or **YAML**.
 
-The export control remains visible but is disabled with an explanation when the connection
-negotiated an MCP protocol version that MCP Description 0.7 does not support.
+Both formats remain visible. A format is disabled with an explanation when it does not support the
+negotiated revision. On `2026-07-28`, stable 0.7 is disabled and Draft 1 remains available.
 
 The browser downloads
-`inspector-description-<server>-<timestamp>.json` or
-`inspector-description-<server>-<timestamp>.yaml`. The document is collected and validated before
+`inspector-description-0.7-<server>-<timestamp>.<encoding>` or
+`inspector-description-0.8.0-draft.1-<server>-<timestamp>.<encoding>`. The document is collected and validated before
 the browser download begins. Warnings and informational omissions appear in a notification after a
 successful download; validation or collection failures produce no file.
 
@@ -50,6 +48,13 @@ Export YAML to a file:
 npx @modelcontextprotocol/inspector --cli --config path/to/mcp.json --server demo \
   --artifact-plugin modelcontextprotocol.mcpdesc-0.7 \
   --encoding yaml --output server.mcpdesc.yaml
+```
+
+Export Draft 1 for a server negotiated on any supported revision:
+
+```bash
+npx @modelcontextprotocol/inspector --cli --config path/to/mcp.json --server demo \
+  --artifact-plugin mcpdesc-0.8-draft.1 --encoding yaml --output server.mcpdesc.yaml
 ```
 
 `--encoding` defaults to `json`, and `--output` defaults to stdout. Artifact content is the only
@@ -76,23 +81,27 @@ partial document that could be mistaken for a complete server description.
 
 ## Mapping and validation
 
-The 0.7 mapper is version-specific. It copies source fields through a strict allowlist rather than
+Each mapper is version-specific. It copies source fields through a strict allowlist rather than
 spreading arbitrary SDK objects into the artifact. Nested values are preserved only where the 0.7
 schema explicitly permits open data, including JSON Schemas, annotations, `_meta`, and extensible
 capability objects.
 
-Before writing, the Inspector validates the projected document against the embedded authoritative
-MCP Description 0.7 JSON Schema using AJV and `ajv-formats`. Structural rules, required fields,
-enums, constants, additional-property rules, URI formats, and email formats are enforced for both
-JSON and YAML output.
+Stable 0.7 is validated against its embedded authoritative schema. Draft 1 is validated through
+`@mcpdesc/validator` `0.1.0`, which binds the schema and semantic rules for snapshot
+`0.8.0-draft.1` and returns structured diagnostics without network access. Both JSON and YAML
+outputs receive the same validation.
+
+Every export describes only the current negotiated connection. Draft 1 therefore emits exactly
+one root revision, for example `"protocolVersions": ["2025-11-25"]`; it does not reconnect under
+other revisions or merge multiple protocol views.
 
 Export fails before writing when, among other cases:
 
 - initialize metadata does not provide a non-empty server name and version;
-- tools, resources, resource templates, and prompts are all empty;
+- for 0.7, tools, resources, resource templates, and prompts are all empty;
 - a projected value violates the 0.7 schema;
 - the negotiated MCP protocol version is outside the 0.7 enum:
-  `2024-11-05`, `2025-03-26`, `2025-06-18`, or `2025-11-25`;
+  the revisions declared for the selected format in the table above;
 - a remote transport URL is invalid or does not use HTTP(S).
 
 An unsupported negotiated protocol version is not omitted or coerced to a known version. The
@@ -102,8 +111,8 @@ depth. Compatibility uses the version actually negotiated by this Inspector conn
 newest version the server could support. A dual-era server negotiated as legacy `2025-11-25` is
 therefore exportable, while the same server negotiated as modern `2026-07-28` is not.
 
-MCP server instructions have no 0.7 destination field. When present, they are omitted and reported
-as an informational diagnostic.
+MCP server instructions have no 0.7 destination field. They are omitted with an informational
+diagnostic in 0.7 and preserved at the Draft 1 document root.
 
 ## Diagnostics and excluded tools
 

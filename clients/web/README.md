@@ -84,19 +84,20 @@ recorded command, fetch a URL, start OAuth, activate extensions, or mutate the s
 [Record and replay native Inspector sessions](../../docs/native-session-record-replay.md) for the
 workflow, schema reference, and security boundary.
 
-### MCP Description 0.7 export
+### MCP Description export
 
-While connected, use **Export description** in the header and select **JSON** or **YAML**. Unlike a
+While connected, use **Export description** in the header, choose stable 0.7 or 0.8.0 Draft 1, and
+select **JSON** or **YAML**. Unlike a
 native session artifact, this action does not record the Inspector's accumulated events. It
 performs fresh capability-gated discovery directly against the live server, bypasses cached list
 responses, follows all pagination cursors, and validates the projected document against the
-authoritative MCP Description 0.7 schema before starting a download.
+authoritative validator for the selected format before starting a download.
 
 The browser writes
-`inspector-description-<server>-<timestamp>.json` or
-`inspector-description-<server>-<timestamp>.yaml`. Invalid tools are omitted with diagnostics;
+`inspector-description-<format>-<server>-<timestamp>.json` or
+`inspector-description-<format>-<server>-<timestamp>.yaml`. Invalid tools are omitted with diagnostics;
 advertised-list failures and schema incompatibilities produce no file. See
-[Export MCP Description 0.7](../../docs/mcp-description-export.md) for supported protocol versions,
+[Export MCP Description](../../docs/mcp-description-export.md) for supported protocol versions,
 safe-minimum transport disclosure, diagnostics, and sharing guidance.
 
 Nothing _enforces_ the boundary — no path alias keys off it, and the coverage `include` in `vite.config.ts` lists both directories, so a move between them is coverage-neutral. It's a human-legible import-time signal. See [`AGENTS.md`](../../AGENTS.md) for the full rule (including the whitelist caveat — a module placed outside `components`/`lib`/`utils`/`server` falls out of the ≥90 gate).

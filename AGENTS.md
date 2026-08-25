@@ -86,8 +86,9 @@ v2/main/
 │   │                                   #   compatibility diagnostics, contribution catalogs,
 │   │                                   #   built-in metadata, command/artifact plan DTOs, the
 │   │                                   #   native-session schema/format handler/redaction builder/replay
-│   │                                   #   projection, the MCP Description 0.7 schema/mapper/validator,
-│   │                                   #   fresh server-description collection, plus
+│   │                                   #   projection, MCP Description 0.7 schema/mapper/validator,
+│   │                                   #   MCP Description 0.8.0 Draft 1 support backed by
+│   │                                   #   `@mcpdesc/validator`, fresh server-description collection, plus
 │   │                                   #   the Node-only built-in server catalog provider.
 │   │                                   #   Tests in clients/web/src/test/core/extensions/.
 │   ├── json/                           # JSON utilities and parameter/argument conversion

@@ -209,22 +209,32 @@ describe("ViewHeader", () => {
       expect(onExportSession).toHaveBeenCalledTimes(1);
     });
 
-    it("exports a description in the selected menu encoding", async () => {
-      const user = userEvent.setup();
-      const onExportDescription = vi.fn();
-      renderWithMantine(
-        <ViewHeader
-          {...connectedProps}
-          onExportDescription={onExportDescription}
-        />,
-      );
+    it.each([
+      ["MCP Description 0.7 JSON", "mcpdesc-0.7", "json"],
+      ["MCP Description 0.7 YAML", "mcpdesc-0.7", "yaml"],
+      ["MCP Description 0.8.0 Draft 1 JSON", "mcpdesc-0.8-draft.1", "json"],
+      ["MCP Description 0.8.0 Draft 1 YAML", "mcpdesc-0.8-draft.1", "yaml"],
+    ] as const)(
+      "exports %s in the explicitly selected format and encoding",
+      async (accessibleName, format, encoding) => {
+        const user = userEvent.setup();
+        const onExportDescription = vi.fn();
+        renderWithMantine(
+          <ViewHeader
+            {...connectedProps}
+            onExportDescription={onExportDescription}
+          />,
+        );
 
-      await user.click(
-        screen.getByRole("button", { name: "Export description" }),
-      );
-      await user.click(screen.getByRole("menuitem", { name: "YAML" }));
-      expect(onExportDescription).toHaveBeenCalledWith("yaml");
-    });
+        await user.click(
+          screen.getByRole("button", { name: "Export description" }),
+        );
+        await user.click(
+          await screen.findByRole("menuitem", { name: accessibleName }),
+        );
+        expect(onExportDescription).toHaveBeenCalledWith(format, encoding);
+      },
+    );
 
     it("disables description export and explains protocol incompatibility", async () => {
       const user = userEvent.setup();
@@ -233,15 +243,20 @@ describe("ViewHeader", () => {
       renderWithMantine(
         <ViewHeader
           {...connectedProps}
-          descriptionExportDisabledReason={reason}
+          descriptionExportDisabledReasons={{ "mcpdesc-0.7": reason }}
         />,
       );
 
       const button = screen.getByRole("button", {
         name: "Export description",
       });
-      expect(button).toBeDisabled();
-      await user.hover(button.parentElement!);
+      expect(button).not.toBeDisabled();
+      await user.click(button);
+      const stableJson = screen.getByRole("menuitem", {
+        name: "MCP Description 0.7 JSON",
+      });
+      expect(stableJson).toHaveAttribute("data-disabled");
+      await user.hover(screen.getByText("MCP Description 0.7 (stable)"));
       expect(await screen.findByText(reason)).toBeInTheDocument();
     });
 

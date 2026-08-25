@@ -24,7 +24,11 @@ import {
 } from "react-icons/md";
 import { VscDebugDisconnect } from "react-icons/vsc";
 import type { ConnectionStatus } from "@inspector/core/mcp/types.js";
-import type { McpDescription07Encoding } from "@inspector/core/extensions/builtin/mcpdesc-0.7/constants.js";
+import type {
+  WebServerDescriptionDisabledReasons,
+  WebServerDescriptionEncoding,
+  WebServerDescriptionFormat,
+} from "../../../lib/exportServerDescriptionArtifact";
 import { ServerStatusIndicator } from "../../elements/ServerStatusIndicator/ServerStatusIndicator";
 import {
   MonitoringToggle,
@@ -46,8 +50,11 @@ interface ConnectedProps {
   availableTabs: string[];
   onTabChange: (tab: string) => void;
   onExportSession: () => void;
-  onExportDescription: (encoding: McpDescription07Encoding) => void;
-  descriptionExportDisabledReason?: string;
+  onExportDescription: (
+    format: WebServerDescriptionFormat,
+    encoding: WebServerDescriptionEncoding,
+  ) => void;
+  descriptionExportDisabledReasons?: WebServerDescriptionDisabledReasons;
   onDisconnect: () => void;
   onToggleTheme: () => void;
   onOpenClientSettings: () => void;
@@ -297,9 +304,16 @@ export function ViewHeader(props: ViewHeaderProps) {
   const handleExportDescription = props.connected
     ? props.onExportDescription
     : undefined;
-  const descriptionExportDisabledReason = props.connected
-    ? props.descriptionExportDisabledReason
+  const descriptionExportDisabledReasons = props.connected
+    ? props.descriptionExportDisabledReasons
     : undefined;
+  const mcpDescription07DisabledReason =
+    descriptionExportDisabledReasons?.["mcpdesc-0.7"];
+  const mcpDescription08Draft1DisabledReason =
+    descriptionExportDisabledReasons?.["mcpdesc-0.8-draft.1"];
+  const allDescriptionFormatsDisabled =
+    mcpDescription07DisabledReason !== undefined &&
+    mcpDescription08Draft1DisabledReason !== undefined;
   const handleDisconnect = props.connected ? props.onDisconnect : undefined;
 
   // The glow only arms once the connection has settled (GLOW_GRACE_MS after
@@ -443,14 +457,16 @@ export function ViewHeader(props: ViewHeaderProps) {
                 <Menu>
                   <Menu.Target>
                     <Tooltip
-                      label={descriptionExportDisabledReason}
-                      disabled={descriptionExportDisabledReason === undefined}
+                      label={
+                        allDescriptionFormatsDisabled
+                          ? "No MCP Description format supports the negotiated protocol version"
+                          : undefined
+                      }
+                      disabled={!allDescriptionFormatsDisabled}
                     >
                       <Box component="span">
                         <ExportDescriptionIcon
-                          disabled={
-                            descriptionExportDisabledReason !== undefined
-                          }
+                          disabled={allDescriptionFormatsDisabled}
                         >
                           <MdDescription size={20} />
                         </ExportDescriptionIcon>
@@ -459,13 +475,62 @@ export function ViewHeader(props: ViewHeaderProps) {
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Label>Export Description</Menu.Label>
+                    <Menu.Label>
+                      <Tooltip
+                        label={mcpDescription07DisabledReason}
+                        disabled={mcpDescription07DisabledReason === undefined}
+                      >
+                        <span>MCP Description 0.7 (stable)</span>
+                      </Tooltip>
+                    </Menu.Label>
                     <Menu.Item
-                      onClick={() => handleExportDescription?.("json")}
+                      aria-label="MCP Description 0.7 JSON"
+                      disabled={mcpDescription07DisabledReason !== undefined}
+                      onClick={() =>
+                        handleExportDescription?.("mcpdesc-0.7", "json")
+                      }
                     >
                       JSON
                     </Menu.Item>
                     <Menu.Item
-                      onClick={() => handleExportDescription?.("yaml")}
+                      aria-label="MCP Description 0.7 YAML"
+                      disabled={mcpDescription07DisabledReason !== undefined}
+                      onClick={() =>
+                        handleExportDescription?.("mcpdesc-0.7", "yaml")
+                      }
+                    >
+                      YAML
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Label>
+                      <Tooltip
+                        label={mcpDescription08Draft1DisabledReason}
+                        disabled={
+                          mcpDescription08Draft1DisabledReason === undefined
+                        }
+                      >
+                        <span>MCP Description 0.8.0 Draft 1</span>
+                      </Tooltip>
+                    </Menu.Label>
+                    <Menu.Item
+                      aria-label="MCP Description 0.8.0 Draft 1 JSON"
+                      disabled={
+                        mcpDescription08Draft1DisabledReason !== undefined
+                      }
+                      onClick={() =>
+                        handleExportDescription?.("mcpdesc-0.8-draft.1", "json")
+                      }
+                    >
+                      JSON
+                    </Menu.Item>
+                    <Menu.Item
+                      aria-label="MCP Description 0.8.0 Draft 1 YAML"
+                      disabled={
+                        mcpDescription08Draft1DisabledReason !== undefined
+                      }
+                      onClick={() =>
+                        handleExportDescription?.("mcpdesc-0.8-draft.1", "yaml")
+                      }
                     >
                       YAML
                     </Menu.Item>

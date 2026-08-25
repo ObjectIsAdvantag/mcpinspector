@@ -380,8 +380,14 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
     activeTab?: string;
     erroredServerId?: string;
     initializeResult?: { serverInfo: { name: string; version: string } };
-    descriptionExportDisabledReason?: string;
-    onExportDescription: (encoding: "json" | "yaml") => void;
+    descriptionExportDisabledReasons?: {
+      "mcpdesc-0.7"?: string;
+      "mcpdesc-0.8-draft.1"?: string;
+    };
+    onExportDescription: (
+      format: "mcpdesc-0.7" | "mcpdesc-0.8-draft.1",
+      encoding: "json" | "yaml",
+    ) => void;
     onActiveTabChange: (tab: string) => void;
     onConnectionInfo: () => void;
     onToggleConnection: (id: string) => void;
@@ -459,11 +465,15 @@ vi.mock("./components/views/InspectorView/InspectorView", () => ({
       <span data-testid="errored-server">
         {props.erroredServerId ?? "none"}
       </span>
-      <span data-testid="description-export-disabled-reason">
-        {props.descriptionExportDisabledReason ?? "none"}
+      <span data-testid="description-export-0.7-disabled-reason">
+        {props.descriptionExportDisabledReasons?.["mcpdesc-0.7"] ?? "none"}
       </span>
-      <button onClick={() => props.onExportDescription("json")}>
-        export-description
+      <span data-testid="description-export-draft-disabled-reason">
+        {props.descriptionExportDisabledReasons?.["mcpdesc-0.8-draft.1"] ??
+          "none"}
+      </span>
+      <button onClick={() => props.onExportDescription("mcpdesc-0.7", "json")}>
+        export-description-0.7
       </button>
       <button onClick={() => props.onActiveTabChange("Servers")}>
         switch-servers-tab
@@ -972,7 +982,7 @@ describe("App MCP Description applicability", () => {
     notificationsMock.show.mockClear();
   });
 
-  it("disables and guards export for a modern negotiated version", async () => {
+  it("guards stable 0.7 but enables Draft 1 for a modern version", async () => {
     vi.mocked(useInspectorClient).mockReturnValue({
       ...DEFAULT_USE_INSPECTOR_CLIENT,
       protocolVersion: "2026-07-28",
@@ -981,9 +991,12 @@ describe("App MCP Description applicability", () => {
     renderWithMantine(<App />);
 
     expect(
-      screen.getByTestId("description-export-disabled-reason"),
+      screen.getByTestId("description-export-0.7-disabled-reason"),
     ).toHaveTextContent("2026-07-28");
-    await user.click(screen.getByText("export-description"));
+    expect(
+      screen.getByTestId("description-export-draft-disabled-reason"),
+    ).toHaveTextContent("none");
+    await user.click(screen.getByText("export-description-0.7"));
     await waitFor(() =>
       expect(notificationsMock.show).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1001,7 +1014,10 @@ describe("App MCP Description applicability", () => {
     });
     renderWithMantine(<App />);
     expect(
-      screen.getByTestId("description-export-disabled-reason"),
+      screen.getByTestId("description-export-0.7-disabled-reason"),
+    ).toHaveTextContent("none");
+    expect(
+      screen.getByTestId("description-export-draft-disabled-reason"),
     ).toHaveTextContent("none");
   });
 });

@@ -105,6 +105,7 @@ The reference repository accepts detailed issues rather than unsolicited pull re
    - disconnected replay;
    - MCP Description 0.7 export;
    - negotiated-protocol applicability;
+   - MCP Description 0.8.0 Draft 1 export as an immutable sibling format;
    - external Node host only after the brokered contracts are accepted.
 
 Call this the **Inspector host extension architecture** or **Inspector plugin architecture** in upstream discussion so it is not confused with MCP protocol extensions.

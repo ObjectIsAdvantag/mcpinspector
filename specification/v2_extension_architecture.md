@@ -6,7 +6,8 @@
 - **Maturity:** candidate architecture; public extension compatibility is not promised
 - **Implemented:** Phase 0 contracts/static discovery, Phase 1 built-in command registry and CLI
   command lifecycle, Phase 2 native-session capture/export plus bounded, read-only Web replay, and
-  Phase 3 fresh MCP Description 0.7 JSON/YAML export in CLI and Web
+  Phase 3 fresh MCP Description 0.7 JSON/YAML export in CLI and Web, and Phase 7 immutable MCP
+  Description 0.8.0 Draft 1 export backed by `@mcpdesc/validator`
 - **Primary targets:** CLI and Web; TUI consumes shared command and artifact services later
 - **Reference model:** Visual Studio Code extensions (manifest, contribution points, lazy
   activation, runtime-specific entry points, and an extension-host boundary)
@@ -17,7 +18,7 @@ third-party code. The examples are:
 - `servers/list` and `servers/show` command contributions;
 - a native Inspector session artifact;
 - `mcpdesc-0.7` artifact export;
-- the reserved `mcpdesc-0.8` identity, implemented only when that format is specified.
+- `mcpdesc-0.8-draft.1` artifact export as an independent immutable draft format.
 
 All implementation, schemas, examples, command names, and documentation added to the repository
 are written in English.
@@ -597,20 +598,23 @@ This is host preflight, not a replacement for format validation:
 - `validate` has no live protocol requirement because validating an existing artifact is an offline
   operation; it remains independent from `export` requirements.
 
-### 10.5 MCP Description 0.8
+### 10.5 MCP Description 0.8.0 Draft 1
 
-Reserved canonical ID: `modelcontextprotocol.mcpdesc-0.8`.
+Canonical ID: `modelcontextprotocol.mcpdesc-0.8.0-draft.1`. The stable
+`modelcontextprotocol.mcpdesc-0.8` identity remains reserved.
 
-Do not register this contribution until an authoritative 0.8 schema exists. During architecture
-development, a manifest fixture may use the ID to test unavailable/incompatible contribution
-diagnostics, but production discovery must not claim that export is supported.
+Draft 1 is a sibling format, not an encoding or replacement for 0.7. It supports negotiated MCP
+revisions `2024-11-05`, `2025-03-26`, `2025-06-18`, `2025-11-25`, and `2026-07-28`. Each export is
+one effective view of the current connection and contains exactly that negotiated revision at the
+document root.
 
-When 0.8 is available:
+The handler:
 
-- add a separate schema, mapper, fixtures, and compatibility tests;
-- keep the 0.7 format handler unchanged;
-- share collection only where the source requirements are identical;
-- allow the extension package version to evolve without changing either artifact ID.
+- uses a separate Draft 1 mapper and keeps the 0.7 handler unchanged;
+- shares only the brokered live snapshot collector;
+- validates structure and semantics with the exact-pinned, isomorphic `@mcpdesc/validator` package;
+- binds validation to immutable selector `0.8.0-draft.1` with no external `$ref` fetching;
+- supports JSON and YAML through the host-owned output sink.
 
 ## 11. Runtime and security model
 
@@ -908,14 +912,14 @@ Deliverables:
 Do not publish `core/`. A future extension API package contains contracts and generated validators,
 not Inspector runtime implementations.
 
-### Phase 7 — MCP Description 0.8
+### Phase 7 — MCP Description 0.8.0 Draft 1
 
-Trigger: an authoritative 0.8 specification and schema exist.
+Trigger: the authoritative `v0.8.0-draft.1` snapshot and reusable validator package exist.
 
 Deliverables:
 
-- activate the reserved `modelcontextprotocol.mcpdesc-0.8` contribution;
-- independent schema, mapper, fixtures, and tests;
+- activate `modelcontextprotocol.mcpdesc-0.8.0-draft.1` without consuming the stable 0.8 identity;
+- independent mapper, fixtures, and tests using `@mcpdesc/validator` for schema and semantics;
 - migration/difference documentation from 0.7;
 - no behavior change in `mcpdesc-0.7`.
 
